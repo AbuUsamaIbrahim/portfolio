@@ -1,30 +1,33 @@
 ---
 index: 4
 title: "Subscriber Verification Gateway"
-subtitle: "A reactive trust boundary in front of subscriber verification"
+subtitle: "ECDH key agreement, encrypted payloads, and a reactive trust boundary"
 org: "RedDot Digital"
 period: "2024"
 role: "Sole author"
-summary: "A Spring Cloud Gateway built from nothing to sit in front of subscriber verification services — signing every request with HMAC, validating JWTs, and giving a sprawl of internal services exactly one front door."
+summary: "A reactive API gateway built from nothing in front of subscriber verification services — elliptic-curve key exchange per client, AES-GCM encrypted request bodies, HMAC-signed and timestamped handshakes, and JWT identity, all decided in one place."
 facts:
   - { label: "Scope", value: "Built from scratch, solo" }
+  - { label: "Key agreement", value: "ECDH over EC key pairs" }
+  - { label: "Payload", value: "AES-GCM · 96-bit IV" }
   - { label: "Model", value: "Reactive · non-blocking" }
-  - { label: "Auth", value: "HMAC signing + JWT" }
-  - { label: "Fronting", value: "Subscriber verification services" }
-stack: ["Java", "Spring Cloud Gateway", "Spring WebFlux", "Project Reactor", "JWT / Nimbus JOSE", "HMAC"]
+stack: ["Java", "Spring Cloud Gateway", "Spring WebFlux", "Project Reactor", "ECDH", "AES-GCM", "HMAC-SHA256", "JWT / Nimbus JOSE"]
 decisions:
-  - choice: "Spring Cloud Gateway on WebFlux, not a servlet-based proxy"
-    rejected: "A blocking Spring MVC gateway with a thread per request"
-    because: "A gateway is almost entirely I/O wait — it does very little work of its own. A thread-per-request model spends its memory on parked threads waiting for downstream calls. Reactive keeps the footprint flat when downstream services get slow, which is exactly when a gateway must not fall over."
-  - choice: "HMAC request signing in addition to JWT"
-    rejected: "Bearer-token authentication alone"
-    because: "A JWT proves who is calling. It does not prove the request body was not altered in transit or replayed. Signing binds the caller to the exact payload, which matters when the payload is an identity verification."
-  - choice: "An explicit, configurable bypass list"
-    rejected: "Hardcoding exceptions for multipart uploads and public endpoints"
-    because: "There will always be endpoints that legitimately cannot be signed — file uploads, health checks, callbacks. Making that list explicit and reviewable is safer than scattering conditionals through filters, because it turns 'what is unprotected?' into a question with one answer."
+  - choice: "Encrypt the payload end to end with a per-client derived key, on top of TLS"
+    rejected: "Relying on TLS alone for confidentiality"
+    because: "TLS is terminated at the load balancer, which means the request travels the internal network in plaintext and is readable in any proxy log or traffic capture along the way. For identity documents and biometric references that is not an acceptable trust assumption. Encrypting the body means the payload stays sealed until the gateway itself opens it."
+  - choice: "ECDH key agreement rather than shipping a shared secret"
+    rejected: "Provisioning a static symmetric key per client"
+    because: "A static key is a secret that has to be distributed, stored and rotated everywhere it exists — and it is game over if any copy leaks. With ECDH each side keeps its private key and the shared secret is derived, never transmitted. Elliptic curve also buys smaller keys and a cheaper agreement than the RSA equivalent."
+  - choice: "AES-GCM, a single AEAD primitive"
+    rejected: "AES-CBC plus a separate HMAC over the ciphertext"
+    because: "Encrypt-then-MAC is correct but only if you assemble it correctly, and the failure mode of getting the order wrong is silent. GCM gives confidentiality and integrity in one construction with an authentication tag, so a tampered ciphertext fails to decrypt instead of decrypting into something plausible."
+  - choice: "HMAC signature plus a timestamp window on the key-exchange endpoint"
+    rejected: "Leaving the handshake open, since it carries no secret material"
+    because: "The bootstrap is the weakest moment in any key exchange — it is the one call that happens before a session key exists. Signing it proves the caller holds the shared secret, and rejecting stale timestamps means a captured handshake cannot be replayed later to open a session."
   - choice: "One gateway in front of the estate, not per-service security"
-    rejected: "Each verification service implementing its own auth filter"
-    because: "Security logic duplicated across services drifts, and the weakest copy defines your actual posture. Centralising it means one place to audit and one place to fix."
+    rejected: "Each verification service implementing its own crypto and auth"
+    because: "Cryptography implemented in eight places is cryptography implemented wrong in at least one. Centralising it means one implementation to review, one place to rotate keys, and services behind it that can go back to being ordinary Spring applications."
 diagram: "gateway"
 accent: "#a78bfa"
 ---
@@ -32,53 +35,85 @@ accent: "#a78bfa"
 ## The problem
 
 Subscriber verification is where a telecom decides whether a person is who they claim to be, against
-national identity data. The services behind it were internal, numerous, and each had grown its own
-ideas about authentication.
+national identity data. The payloads are fingerprint templates, national ID document extracts and
+face-match references — about as sensitive as data gets.
 
-That is a bad shape for a trust boundary. If eight services each implement their own auth, you do
-not have eight defences — you have one, and it is whichever is weakest. What was needed was a single
-front door that every call passes through, with security decided in one auditable place.
+The services behind it were internal, numerous, and each had grown its own ideas about
+authentication. That is a bad shape for a trust boundary: if eight services each implement their own
+security, you do not have eight defences, you have one, and it is whichever is weakest.
+
+What was needed was a single front door — and, because of what the payloads contain, a front door
+that does considerably more than check a token.
 
 ## Shape of the system
 
 <Diagram />
 
-The gateway is small on purpose. It routes, it verifies, it forwards. It holds no business logic,
-because a component that everything depends on should be a component you rarely need to change.
+The gateway is small on purpose. It performs key agreement, decrypts, verifies, routes, and forwards.
+It holds no business logic, because a component that everything depends on should be a component you
+rarely need to change.
+
+## The security model, in four layers
+
+Each layer answers a different question, and none of them substitutes for another:
+
+- **TLS** — is the transport private? Necessary, and not sufficient, because it terminates at the
+  load balancer.
+- **ECDH-derived AES-GCM** — is the *payload* private, and unmodified, all the way to the gateway?
+- **HMAC + timestamp** — is this specific request authentic and fresh, rather than replayed?
+- **JWT** — who is calling, and is their claim still valid?
+
+### The handshake
+
+A client posts its public key to `/key-exchange`, signing the request with HMAC and including a
+timestamp that must fall inside a configured window. The gateway verifies the signature, rejects
+anything stale, and returns its own public key and a session.
+
+From that point both sides hold what they need to derive the same secret — the gateway's EC private
+key with the client's public key on one side, the mirror on the other — **without that secret ever
+crossing the network.** The derived value is hashed with SHA-256 and truncated to an AES key.
+
+### The steady state
+
+Every subsequent request carries an encrypted body. A `RewriteFunction` in the reactive pipeline
+decrypts it before routing, so the services behind the gateway receive ordinary JSON and never learn
+that any of this happened. Each message carries its own 96-bit IV, and GCM's authentication tag means
+a modified ciphertext fails loudly rather than decrypting into garbage that looks like data.
+
+The gateway's own key pair lives on disk as PKCS#8 and X.509 encoded files, loaded once at startup
+and cached — the small piece of key-management plumbing that makes the rest of it possible.
 
 ## Why reactive was the right call here
 
-A gateway is close to a pure I/O machine. For any given request it parses headers, computes a
-signature, and then waits — often far longer than it spent working — for a downstream service to
-answer.
+A gateway is close to a pure I/O machine. For any given request it derives a key, decrypts a body,
+and then waits — often far longer than it spent working — for a downstream service to answer.
 
-With a thread-per-request model, that waiting is expensive: each in-flight request holds a thread
-and its stack, so the moment a downstream service slows down, in-flight requests pile up and the
-gateway exhausts its pool. The failure mode is the worst one available — **the component protecting
-everything falls over precisely when something behind it is already struggling.**
+With a thread-per-request model that waiting is expensive: each in-flight request holds a thread and
+its stack, so the moment a downstream service slows, requests pile up and the gateway exhausts its
+pool. The failure mode is the worst one available — **the component protecting everything falls over
+precisely when something behind it is already struggling.**
 
-WebFlux inverts that. Waiting costs a continuation, not a thread. Downstream slowness becomes
-latency the gateway can survive rather than an outage it causes. That is the entire argument, and it
-is why the reactive complexity was worth paying for here and would not have been in a CRUD service.
+WebFlux inverts that. Waiting costs a continuation, not a thread. Downstream slowness becomes latency
+the gateway survives rather than an outage it causes. That is the whole argument, and it is why the
+reactive complexity was worth paying for here and would not have been in a CRUD service.
 
-## HMAC on top of JWT
-
-These answer different questions and the distinction is worth being precise about:
-
-- **JWT** answers *who is calling* — a signed claim of identity with an expiry.
-- **HMAC request signing** answers *is this exact request intact and fresh* — the caller signs the
-  payload with a shared secret, so any modification in transit invalidates it.
-
-For an identity-verification API, the second question is not optional. A valid token attached to a
-tampered or replayed body is precisely the attack worth stopping, and a bearer token alone does not
-stop it.
+Doing the crypto inside a `RewriteFunction` rather than a blocking filter is the same reasoning
+applied one level down: the decryption participates in the reactive chain instead of blocking a
+worker while the body assembles.
 
 ## The unglamorous part: the bypass list
 
-Some endpoints genuinely cannot be signed. Multipart uploads do not have a stable body to sign the
-way a JSON request does. Health checks are called by infrastructure that holds no secret.
+Some endpoints genuinely cannot be signed or encrypted. Multipart uploads have no stable body to sign
+the way a JSON request does. Health checks are called by infrastructure that holds no key.
 
 The temptation is to special-case these inside the filter chain with a few conditionals. I made the
 list explicit and configurable instead, because the question a security review actually asks is
-*"which paths are unprotected, and who decided that?"* — and that should have a single, readable
-answer rather than requiring someone to trace the filter logic.
+*"which paths are unprotected, and who decided that?"* — and that should have one readable answer
+rather than requiring someone to trace the filter logic.
+
+## What I would change
+
+Key rotation is manual. The gateway loads its key pair at startup and holds it; rotating means
+replacing the files and restarting. That was an acceptable trade for the first version and it is the
+first thing I would fix — scheduled rotation with an overlap window, so old sessions drain instead of
+breaking.

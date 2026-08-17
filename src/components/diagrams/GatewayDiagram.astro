@@ -5,12 +5,15 @@ const A = '#a78bfa';
 
 <DiagramFrame
   label="verification gateway"
-  caption="One front door. Security is decided in a single auditable place rather than duplicated across every service behind it — where the weakest copy would define the real posture."
+  caption="TLS terminates at the load balancer, so the payload is encrypted separately with a key neither side ever transmits. Services behind the gateway receive ordinary JSON and never know any of it happened."
 >
-  <svg viewBox="0 0 940 350" class="h-auto w-full" role="img" aria-label="Subscriber verification gateway architecture">
+  <svg viewBox="0 0 940 430" class="h-auto w-full" role="img" aria-label="Subscriber verification gateway architecture">
     <defs>
       <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
         <path d="M 0 0 L 10 5 L 0 10 z" fill={A} />
+      </marker>
+      <marker id="gp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#4ade80" />
       </marker>
       <linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color={A} stop-opacity="0.2" />
@@ -18,64 +21,86 @@ const A = '#a78bfa';
       </linearGradient>
     </defs>
 
-    {/* ---- clients ---- */}
-    <text x="24" y="30" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">CLIENTS</text>
+    {/* ================= HANDSHAKE ================= */}
+    <g>
+      <rect x="24" y="20" width="892" height="86" rx="9" fill="#0b0e14" stroke="#2f3746" stroke-dasharray="5 4" />
+      <text x="40" y="40" class="fill-[#647082] font-mono text-[9px] tracking-[0.18em]">① HANDSHAKE — once per session</text>
+
+      <rect x="40" y="50" width="150" height="42" rx="7" fill="#171c26" stroke="#2f3746" />
+      <text x="115" y="68" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[9px]">Client EC key pair</text>
+      <text x="115" y="82" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">private stays local</text>
+
+      <rect x="750" y="50" width="150" height="42" rx="7" fill="#171c26" stroke="#2f3746" />
+      <text x="825" y="68" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[9px]">Gateway EC key pair</text>
+      <text x="825" y="82" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">PKCS#8 · X.509 on disk</text>
+
+      <line x1="194" y1="64" x2="746" y2="64" stroke={A} stroke-width="1.4" marker-end="url(#ga)" class="flow-line" />
+      <line x1="746" y1="80" x2="194" y2="80" stroke={A} stroke-width="1.4" marker-end="url(#ga)" class="flow-line" />
+      <text x="470" y="60" text-anchor="middle" class="fill-[#a78bfa] font-mono text-[8px]">public keys only — HMAC-signed + timestamped</text>
+      <text x="470" y="100" text-anchor="middle" class="fill-[#4ade80] font-mono text-[8px]">
+        ECDH → SHA-256 → AES key · derived on both sides, never transmitted
+      </text>
+    </g>
+
+    {/* ================= CLIENTS ================= */}
+    <text x="24" y="132" class="fill-[#647082] font-mono text-[9px] tracking-[0.18em]">② EVERY REQUEST AFTER THAT</text>
     {[
-      { y: 52, t: 'Retail app' },
-      { y: 128, t: 'Field device' },
-      { y: 204, t: 'Partner API' },
+      { y: 146, t: 'Retail app' },
+      { y: 212, t: 'Field device' },
+      { y: 278, t: 'Partner API' },
     ].map((c) => (
       <g>
-        <rect x="24" y={c.y} width="132" height="52" rx="9" fill="#171c26" stroke="#2f3746" />
-        <text x="90" y={c.y + 26} text-anchor="middle" class="fill-[#e8eef7] font-mono text-[10px]">{c.t}</text>
-        <text x="90" y={c.y + 41} text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">signed request</text>
-        <line x1="160" y1={c.y + 26} x2="270" y2="164" stroke={A} stroke-opacity="0.45" stroke-width="1.4" marker-end="url(#ga)" class="flow-line" />
+        <rect x="24" y={c.y} width="140" height="48" rx="9" fill="#171c26" stroke="#2f3746" />
+        <text x="94" y={c.y + 22} text-anchor="middle" class="fill-[#e8eef7] font-mono text-[10px]">{c.t}</text>
+        <text x="94" y={c.y + 37} text-anchor="middle" class="fill-[#4ade80] font-mono text-[8px]">AES-GCM body</text>
+        <line x1="168" y1={c.y + 24} x2="280" y2="244" stroke={A} stroke-opacity="0.45" stroke-width="1.4" marker-end="url(#ga)" class="flow-line" />
       </g>
     ))}
 
-    {/* ---- gateway ---- */}
+    {/* ================= GATEWAY ================= */}
     <g>
-      <rect x="278" y="60" width="230" height="208" rx="12" fill="url(#gg)" stroke={A} stroke-opacity="0.75" stroke-width="1.4" />
-      <text x="393" y="88" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[12px] tracking-wide">SECURED GATEWAY</text>
-      <text x="393" y="105" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">Spring Cloud Gateway · WebFlux</text>
+      <rect x="288" y="140" width="238" height="242" rx="12" fill="url(#gg)" stroke={A} stroke-opacity="0.75" stroke-width="1.4" />
+      <text x="407" y="166" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[12px] tracking-wide">GATEWAY</text>
+      <text x="407" y="182" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">Spring Cloud Gateway · WebFlux</text>
 
       {[
-        { y: 124, t: '1 · verify HMAC signature', s: 'payload integrity + replay' },
-        { y: 170, t: '2 · validate JWT', s: 'caller identity + expiry' },
-        { y: 216, t: '3 · route', s: 'non-blocking forward' },
+        { y: 194, n: '1', t: 'verify HMAC + timestamp', s: 'authentic · not replayed' },
+        { y: 240, n: '2', t: 'decrypt AES-GCM body', s: 'RewriteFunction, non-blocking' },
+        { y: 286, n: '3', t: 'validate JWT', s: 'caller identity + expiry' },
+        { y: 332, n: '4', t: 'route', s: 'plaintext JSON downstream' },
       ].map((f) => (
         <g>
-          <rect x="296" y={f.y} width="194" height="38" rx="7" fill="#0b0e14" stroke="#2f3746" />
-          <text x="308" y={f.y + 16} class="fill-[#e8eef7] font-mono text-[9px]">{f.t}</text>
-          <text x="308" y={f.y + 29} class="fill-[#647082] font-mono text-[8px]">{f.s}</text>
+          <rect x="304" y={f.y} width="206" height="38" rx="7" fill="#0b0e14" stroke="#2f3746" />
+          <text x="316" y={f.y + 16} class="fill-[#e8eef7] font-mono text-[9px]">{f.n} · {f.t}</text>
+          <text x="316" y={f.y + 29} class="fill-[#647082] font-mono text-[8px]">{f.s}</text>
         </g>
       ))}
     </g>
 
-    {/* ---- bypass ---- */}
+    {/* bypass */}
     <g>
-      <rect x="278" y="286" width="230" height="34" rx="7" fill="#0b0e14" stroke="#fbbf24" stroke-opacity="0.4" stroke-dasharray="4 3" />
-      <text x="393" y="307" text-anchor="middle" class="fill-[#fbbf24] font-mono text-[9px]">explicit bypass list · multipart, health</text>
+      <rect x="288" y="392" width="238" height="28" rx="7" fill="#0b0e14" stroke="#fbbf24" stroke-opacity="0.4" stroke-dasharray="4 3" />
+      <text x="407" y="410" text-anchor="middle" class="fill-[#fbbf24] font-mono text-[8px]">explicit bypass list · multipart, health</text>
     </g>
 
-    {/* ---- services ---- */}
-    <text x="600" y="30" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">SUBSCRIBER VERIFICATION</text>
+    {/* ================= SERVICES ================= */}
+    <text x="614" y="132" class="fill-[#647082] font-mono text-[9px] tracking-[0.18em]">SUBSCRIBER VERIFICATION</text>
     {[
-      { y: 44, t: 'Fingerprint match', s: 'SourceAFIS' },
-      { y: 106, t: 'NID OCR', s: 'document extract' },
-      { y: 168, t: 'Face match', s: 'biometric' },
-      { y: 230, t: 'Verification core', s: 'decision + audit' },
+      { y: 146, t: 'Fingerprint match', s: 'SourceAFIS' },
+      { y: 204, t: 'NID OCR', s: 'document extract' },
+      { y: 262, t: 'Face match', s: 'biometric' },
+      { y: 320, t: 'Verification core', s: 'decision + audit' },
     ].map((s) => (
       <g>
-        <rect x="600" y={s.y} width="316" height="48" rx="9" fill="#171c26" stroke="#2f3746" />
-        <text x="618" y={s.y + 22} class="fill-[#e8eef7] font-mono text-[10px]">{s.t}</text>
-        <text x="618" y={s.y + 37} class="fill-[#647082] font-mono text-[8px]">{s.s}</text>
-        <line x1="512" y1="164" x2="596" y2={s.y + 24} stroke={A} stroke-opacity="0.35" stroke-width="1.2" marker-end="url(#ga)" />
+        <rect x="614" y={s.y} width="302" height="44" rx="9" fill="#171c26" stroke="#2f3746" />
+        <text x="632" y={s.y + 20} class="fill-[#e8eef7] font-mono text-[10px]">{s.t}</text>
+        <text x="632" y={s.y + 35} class="fill-[#647082] font-mono text-[8px]">{s.s}</text>
+        <line x1="530" y1="262" x2="610" y2={s.y + 22} stroke="#4ade80" stroke-opacity="0.3" stroke-width="1.2" marker-end="url(#gp)" />
       </g>
     ))}
 
-    {/* ---- trust boundary ---- */}
-    <path d="M556 16 v318" stroke="#2f3746" stroke-width="1" stroke-dasharray="6 5" />
-    <text x="562" y="336" class="fill-[#647082] font-mono text-[8px]">trust boundary</text>
+    {/* trust boundary */}
+    <path d="M572 126 v300" stroke="#2f3746" stroke-width="1" stroke-dasharray="6 5" />
+    <text x="578" y="426" class="fill-[#647082] font-mono text-[8px]">trust boundary — plaintext only past here</text>
   </svg>
 </DiagramFrame>
