@@ -1,0 +1,360 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+/* ------------------------------------------------------------------
+   Fill PHONE in before sending this to anyone. Left blank = omitted,
+   which is safer than shipping a placeholder into a PDF.
+------------------------------------------------------------------ */
+const PHONE = '';
+
+const CONTACT = [
+  'Dhaka, Bangladesh',
+  'mahadihasan.parash@gmail.com',
+  PHONE,
+  'linkedin.com/in/mahadihasan-parash',
+  'mahadi-hasan.pages.dev',
+].filter(Boolean);
+
+const SUMMARY = `Lead Software Engineer with 8+ years building event-driven backend systems for telecom billing, mobile financial services and utility platforms. Currently leading a team of 4 engineers on an invoice pipeline generating approximately 2 million customer invoices per billing cycle. Deep experience in Java, Kotlin, Spring Boot, Apache Kafka, microservices architecture and Kubernetes, with a track record of designing distributed systems where correctness and auditability are non-negotiable. Experienced across core banking integration, payment platforms, API security and large-scale ERP.`;
+
+const SKILLS = [
+  { g: 'Languages', v: 'Java (8/17/21), Kotlin, Groovy, JavaScript, TypeScript, SQL, PL/SQL' },
+  { g: 'Frameworks', v: 'Spring Boot, Spring Batch, Spring Security, Spring Data JPA, Spring Cloud Gateway, Spring WebFlux, Hibernate, Grails, React.js' },
+  { g: 'Distributed Systems', v: 'Apache Kafka, RabbitMQ, Event-Driven Architecture, Microservices, REST APIs, Reactive Programming, ShedLock, Idempotency, Backpressure' },
+  { g: 'Databases', v: 'Oracle, PostgreSQL, MS SQL Server, MySQL, ClickHouse, Redis, Flyway, Liquibase' },
+  { g: 'Cloud & DevOps', v: 'Docker, Kubernetes, Helm, ArgoCD, GitLab CI/CD, SonarQube, Harbor, Git, Linux' },
+  { g: 'Security', v: 'OAuth2, JWT, HMAC, ECDH Key Exchange, AES-GCM, Spring Security, Azure AD' },
+  { g: 'Fintech & Domain', v: 'Apache Fineract, Cyclos, Core Banking (CBS), Double-Entry Ledger, ISO 8583, Telecom Billing (BSS), KYC, Mobile Financial Services (MFS)' },
+  { g: 'Practices', v: 'Microservice Design, System Design, Distributed Systems, Code Review, Technical Leadership, Mentoring, Agile' },
+];
+
+const EXPERIENCE = [
+  {
+    title: 'Lead Software Engineer',
+    org: 'Robi Axiata PLC.',
+    loc: 'Dhaka, Bangladesh',
+    dates: 'Jun 2026 – Present',
+    bullets: [
+      'Lead backend engineering across two enterprise platforms: postpaid billing and invoicing, and a nationwide sales and distribution (SFA) platform.',
+      'Lead a team of 4 engineers delivering an event-driven invoice pipeline that generates approximately 2 million customer invoices per billing cycle.',
+      'Own release integration for a 14-module Java 21 / Spring Boot monorepo, merging and stabilising the development line into staging for nationwide retailer and field-sales users.',
+      'Extended corporate billing to support parent/child account hierarchies, bulk PDF generation and automated mail reconciliation for delivery verification.',
+      'Delivered SFA features spanning retailer stock, electronic load, cash-in-hand ledger, incentives and geospatial territory mapping using Hibernate Spatial and JTS.',
+      'Drove code quality and supply-chain compliance by resolving SonarQube quality-gate findings and container registry issues across GitLab CI pipelines deploying via Helm and ArgoCD to Kubernetes.',
+    ],
+  },
+  {
+    title: 'Lead Software Engineer',
+    org: 'RedDot Digital Limited',
+    loc: 'Dhaka, Bangladesh',
+    dates: 'Sep 2024 – Jun 2026',
+    bullets: [
+      'Primary author of the core services of a postpaid billing platform: XML billing parser, charging service and reporting service.',
+      'Architected an event-driven invoice pipeline: bulk XML parsing with Spring Batch, Apache Kafka transport, PDF invoice generation and email notification, with Redis-backed handoff, compressed payloads and Oracle persistence.',
+      'Improved Kafka reliability by introducing timeout backstops, stalled-producer detection and recovery, and explicit backpressure, eliminating silent processing stalls in the billing cycle.',
+      'Built and published a shared Java contract library standardising Kafka topic naming, message compression and DTOs across 6 microservices, converting integration drift into compile-time errors.',
+      'Designed the data layer across Oracle, PostgreSQL and ClickHouse with versioned migrations and ShedLock-coordinated distributed scheduling.',
+      'Delivered core banking and ledger features on a digital wallet platform integrated with Apache Fineract: general ledger account statements, end-of-day CBS reporting, payment-type handling and transaction reversal via compensating entries.',
+      'Served as repository maintainer on wallet core and portal repositories, reviewing and approving all changes entering the release branch.',
+      'Built a reactive API gateway from scratch using Spring Cloud Gateway and WebFlux with ECDH key exchange, AES-GCM payload encryption, HMAC request signing and JWT validation.',
+      'Delivered biometric KYC services including fingerprint matching (SourceAFIS), national ID OCR and face-match APIs.',
+      'Built retailer-facing MFS features in Kotlin and Java covering digital memo with PDF generation, stock and low-stock APIs, electronic load and campaign commission processing, and direct recharge with barred-customer validation.',
+      'Developed an operations portal end to end with a React front end and a Spring Security / Azure AD OAuth2 backend.',
+      'Mentored and conducted code reviews for a team of 4 engineers.',
+    ],
+  },
+  {
+    title: 'Senior Software Engineer',
+    org: 'RedDot Digital Limited',
+    loc: 'Dhaka, Bangladesh',
+    dates: 'Oct 2022 – Sep 2024',
+    bullets: [
+      'Built backend services for a mobile financial services (MFS) platform spanning its core ledger, REST API layer and merchant-facing portals.',
+      'Implemented ledger operations on a Cyclos-based mobile banking core over PostgreSQL supporting customer, agent, distributor and merchant wallets.',
+      'Developed agent-banking APIs including DSR/DO transactions with transaction-limit validation, agent and limit-info listings, and distributor commission disbursement.',
+      'Delivered open-portal and institutional payment flows with event-listener based processing, including payment without registration ID.',
+      'Built an education payment management system (EPMS) with fee creation and configuration modules, bulk student import with validation and failure reporting, and academic-year collection dashboards.',
+      'Reviewed and merged pull requests across MFS and EPMS repositories, acting as release gatekeeper prior to formal promotion to Lead.',
+    ],
+  },
+  {
+    title: 'Programmer',
+    org: 'IICT, BUET',
+    loc: 'Dhaka, Bangladesh',
+    dates: 'Jan 2022 – Sep 2022',
+    bullets: [
+      'Built and extended a Spring Boot REST API layer exposing a utility ERP to portal and mobile clients, using Spring Data JPA over Oracle, Spring Security with JWT authentication and Swagger-documented endpoints.',
+      'Delivered Spring Boot MVC web portals and internal systems alongside the core application.',
+      'Maintained and rolled out shared modules across three utility deployments including reporting, dashboards, document management and SMS notifications.',
+    ],
+  },
+  {
+    title: 'Assistant Programmer',
+    org: 'IICT, BUET',
+    loc: 'Dhaka, Bangladesh',
+    dates: 'Feb 2019 – Jan 2022',
+    bullets: [
+      'Developed the customer billing and revenue ERP used by three state-owned gas distribution companies, comprising approximately 90 controllers across 15 modules.',
+      'Built core modules in Grails and Groovy covering customer management, metering, billing and revenue, demand notes, bank collections and prepaid transactions.',
+      'Implemented connection lifecycle workflows: appliance and load change, ownership transfer, meter change, disconnection, reconnection, sealing and zone migration.',
+      'Developed vigilance and legal modules for unauthorised-use cases and litigation tracking including case registration, courts, lawyers and hearings.',
+      'Built operational and financial reporting with Jasper Reports over Oracle using PL/SQL stored procedures.',
+      'Promoted to Programmer in January 2022.',
+    ],
+  },
+  {
+    title: 'Junior Executive, IT',
+    org: 'Sundarban Courier Service Pvt. Ltd.',
+    loc: 'Dhaka, Bangladesh',
+    dates: 'Jul 2018 – Jan 2019',
+    bullets: [
+      'Supported and extended internal IT systems for a nationwide courier network, including RESTful web service integration.',
+    ],
+  },
+];
+
+const CERTS = [
+  'Claude Code: Software Engineering with Generative AI Agents — Vanderbilt University (Jun 2026)',
+  'AI Fundamentals, Collaboration and Automation with Claude — Advancing Women in Tech (Jun 2026)',
+  'Extending, Securing, and Dockerizing Spring Boot Microservices — LinkedIn Learning (Nov 2022)',
+  'Problem Solving Techniques — LinkedIn Learning (Nov 2022)',
+  'LICT TOP UP-IT JAVA — NASSCOM IT-ITES Sector Skill Council (Apr 2017)',
+];
+---
+
+<Layout
+  title="Mahadi Hasan Parash — CV"
+  description="Curriculum vitae of Mahadi Hasan Parash, Lead Software Engineer specialising in event-driven Java systems for telecom billing and fintech."
+>
+  <div class="mx-auto max-w-3xl px-5 pt-12 pb-6 print:max-w-none print:px-0 print:pt-0">
+    {/* screen-only toolbar */}
+    <div class="mb-10 flex flex-wrap items-center gap-3 print:hidden">
+      <button
+        id="print-cv"
+        class="rounded-lg border border-[var(--color-flow)]/45 bg-[var(--color-flow)]/10 px-4 py-2.5 font-mono text-[12px] transition-colors hover:bg-[var(--color-flow)]/15"
+      >
+        Save as PDF ↓
+      </button>
+      <p class="font-mono text-[11px] text-[var(--color-ink-faint)]">
+        Prints single-column, black on white — parses cleanly in applicant tracking systems.
+      </p>
+    </div>
+
+    <article id="cv" class="cv">
+      {/* ---------- HEADER ---------- */}
+      <header class="cv-head">
+        <h1>Mahadi Hasan Parash</h1>
+        <p class="cv-role">Lead Software Engineer</p>
+        <p class="cv-contact">{CONTACT.join('  •  ')}</p>
+      </header>
+
+      {/* ---------- SUMMARY ---------- */}
+      <section>
+        <h2>Professional Summary</h2>
+        <p>{SUMMARY}</p>
+      </section>
+
+      {/* ---------- SKILLS ---------- */}
+      <section>
+        <h2>Technical Skills</h2>
+        {
+          SKILLS.map((s) => (
+            <p class="cv-skill">
+              <strong>{s.g}:</strong> {s.v}
+            </p>
+          ))
+        }
+      </section>
+
+      {/* ---------- EXPERIENCE ---------- */}
+      <section>
+        <h2>Professional Experience</h2>
+        {
+          EXPERIENCE.map((job) => (
+            <div class="cv-job">
+              <h3>{job.title}</h3>
+              <p class="cv-meta">
+                {job.org} — {job.loc} | {job.dates}
+              </p>
+              <ul>
+                {job.bullets.map((b) => (
+                  <li>{b}</li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </section>
+
+      {/* ---------- EDUCATION ---------- */}
+      <section>
+        <h2>Education</h2>
+        <div class="cv-job">
+          <h3>Bachelor of Science in Computer Science &amp; Engineering</h3>
+          <p class="cv-meta">Jashore University of Science and Technology — Jashore, Bangladesh | 2013 – 2017</p>
+        </div>
+      </section>
+
+      {/* ---------- CERTIFICATIONS ---------- */}
+      <section>
+        <h2>Certifications</h2>
+        <ul>
+          {CERTS.map((c) => <li>{c}</li>)}
+        </ul>
+      </section>
+    </article>
+  </div>
+</Layout>
+
+<script>
+  document.getElementById('print-cv')?.addEventListener('click', () => window.print());
+</script>
+
+<style is:global>
+  /* ---------- shared structure ---------- */
+  .cv h1 {
+    font-size: 1.9rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .cv .cv-role {
+    margin-top: 0.15rem;
+    font-size: 1.05rem;
+    color: var(--color-flow);
+  }
+  .cv .cv-contact {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--color-ink-dim);
+  }
+  .cv-head {
+    border-bottom: 2px solid var(--color-line-bright);
+    padding-bottom: 0.9rem;
+  }
+  .cv section {
+    margin-top: 1.6rem;
+  }
+  .cv h2 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--color-flow);
+    border-bottom: 1px solid var(--color-line);
+    padding-bottom: 0.3rem;
+    margin-bottom: 0.7rem;
+  }
+  .cv h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+  .cv .cv-meta {
+    font-size: 0.85rem;
+    color: var(--color-ink-dim);
+    margin-top: 0.1rem;
+  }
+  .cv .cv-skill {
+    font-size: 0.88rem;
+    color: var(--color-ink-dim);
+    margin-bottom: 0.35rem;
+    line-height: 1.5;
+  }
+  .cv .cv-skill strong {
+    color: var(--color-ink);
+  }
+  .cv p {
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--color-ink-dim);
+  }
+  .cv .cv-job {
+    margin-bottom: 1.15rem;
+  }
+  .cv ul {
+    margin-top: 0.45rem;
+    padding-left: 1.1rem;
+  }
+  .cv li {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--color-ink-dim);
+    margin-bottom: 0.3rem;
+    list-style: disc;
+  }
+
+  /* ---------- ATS-safe print ---------- */
+  @media print {
+    @page {
+      size: A4;
+      margin: 14mm 15mm;
+    }
+    html,
+    body {
+      background: #fff !important;
+      color: #000 !important;
+    }
+    body::before {
+      display: none !important;
+    }
+    header,
+    footer,
+    nav,
+    .print\:hidden {
+      display: none !important;
+    }
+    main {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .cv,
+    .cv * {
+      color: #000 !important;
+      background: transparent !important;
+      font-family: Georgia, "Times New Roman", serif;
+    }
+    .cv h1 {
+      font-size: 20pt;
+    }
+    .cv .cv-role,
+    .cv h2 {
+      color: #000 !important;
+    }
+    .cv h2 {
+      font-size: 10.5pt;
+      border-bottom: 1px solid #000;
+      margin-top: 14pt;
+    }
+    .cv h3 {
+      font-size: 11pt;
+    }
+    .cv p,
+    .cv li {
+      font-size: 10pt;
+      line-height: 1.38;
+    }
+    .cv .cv-contact,
+    .cv .cv-meta {
+      font-size: 9.5pt;
+    }
+    .cv-head {
+      border-bottom: 1.5pt solid #000;
+    }
+    .cv section {
+      margin-top: 10pt;
+    }
+    /* keep a role and its bullets together where possible */
+    .cv-job {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .cv h2,
+    .cv h3 {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    a {
+      text-decoration: none !important;
+    }
+  }
+</style>
