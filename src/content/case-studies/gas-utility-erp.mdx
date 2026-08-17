@@ -1,0 +1,88 @@
+---
+index: 4
+title: "Gas Utility ERP"
+subtitle: "One system, three state utilities, and the full life of a gas connection"
+org: "IICT, BUET"
+period: "2019 — 2022"
+role: "Assistant Programmer → Programmer"
+summary: "The billing and revenue platform used by three of Bangladesh's state-owned gas distribution companies — customers, meters, bills, disconnections, vigilance and litigation, in one long-lived system."
+facts:
+  - { label: "Deployments", value: "KGDCL · BGDCL · SGCL" }
+  - { label: "Surface", value: "~90 controllers, 15 modules" }
+  - { label: "Tenure", value: "3 years 8 months" }
+  - { label: "Core", value: "Grails · Oracle · PL/SQL" }
+stack: ["Groovy", "Grails", "Java", "Spring Boot", "Oracle", "PL/SQL", "Jasper Reports", "JWT", "Swagger"]
+decisions:
+  - choice: "One codebase deployed per utility, not three forks"
+    rejected: "Copying the system for each company and letting each diverge"
+    because: "Three utilities share about ninety percent of their domain — a meter is a meter, a tariff is a tariff. Forking would have tripled the cost of every fix. Keeping one codebase with per-deployment configuration meant a correction to billing logic reached all three."
+  - choice: "Stored procedures for billing calculation, application code for workflow"
+    rejected: "Moving all calculation into the application tier"
+    because: "Bill computation is set-shaped work over large tables, and it lives next to the data for good reason. Workflow and state transitions are branching logic that belongs in code where it can be read and tested. Splitting on that line played to each tier's strength."
+  - choice: "Add a REST API layer rather than extend the Grails monolith"
+    rejected: "Serving new portal and mobile clients from the existing server-rendered app"
+    because: "The monolith was correct and working — the wrong thing to destabilise. A separate Spring Boot API with JWT and Swagger let new clients arrive without touching the system that was already billing customers."
+  - choice: "Model disconnection and reconnection as an explicit lifecycle"
+    rejected: "A boolean status flag on the customer record"
+    because: "A connection does not have two states. It gets a demand note, gets sealed, gets disputed, gets reconnected, migrates zone, changes owner. A flag cannot answer 'why is this customer disconnected and who authorised it' — a modelled lifecycle with history can, and the vigilance and legal modules depend on that answer."
+diagram: "erp"
+accent: "#fbbf24"
+---
+
+## The problem
+
+Three state-owned gas distribution companies — Karnaphuli, Bakhrabad and Sundarban — needed the
+software that runs their business: every customer, every meter, every bill, and every dispute.
+
+This was my first real system, and it was a large one. Not large in traffic — large in *surface*.
+Around ninety controllers across fifteen modules, because a utility's domain genuinely is that
+broad, and every part of it maps to something a person in an office does every day.
+
+## Shape of the system
+
+<Diagram />
+
+A **Grails** monolith over **Oracle**, with billing computation pushed down into PL/SQL and
+reporting through Jasper. Later, a **Spring Boot** REST layer alongside it — JWT-secured and
+Swagger-documented — so portals and mobile clients could arrive without disturbing the system that
+was already generating bills.
+
+## What a gas connection actually involves
+
+The part I underestimated at twenty-three: the interesting complexity was not technical.
+
+A connection is created, given appliances with rated capacities, metered, billed on a tariff that
+depends on customer class, and read on a serial schedule. Then reality arrives. The customer changes
+their appliance load. The property changes owner. The meter is replaced. The customer does not pay,
+so a demand note is issued, then the connection is disconnected and sealed. They dispute it. It goes
+to court, and now there is a case with a lawyer, a court, a panel area and hearing dates — all of
+which the system tracks, because the utility's legal team works out of the same platform as its
+billing team.
+
+Modelling that as a **lifecycle with history** rather than a status flag is the single design choice
+the whole system rests on. Every downstream module — vigilance, legal, revenue reporting — needs to
+answer *how did this connection get into this state, and who authorised each step*. A flag throws
+that away the moment it is overwritten.
+
+## Why the monolith was right
+
+It would be easy, writing this now, to say it should have been services. It should not have been.
+
+One team, one database, one deployment per utility, and a domain where nearly every module reads the
+customer. Splitting that would have bought distributed transactions and network calls in exchange
+for nothing anyone needed. The monolith was legible: you could follow a bill from controller to
+stored procedure in one repository.
+
+What I would change is the boundary discipline *inside* it — clearer module seams, so the parts that
+did eventually want to be separate could leave cleanly.
+
+## What it taught me
+
+Three things I still work by:
+
+- **Domain complexity outweighs technical complexity.** Nothing here was hard to build. Getting the
+  rules right — whose tariff, whose liability, which surcharge — was hard, and it was the job.
+- **Software for state utilities is long-lived.** Code written in 2019 was still billing customers
+  years later. That changes how you write it.
+- **Reports are not a feature, they are the product** for the people who actually use it. The
+  operators' day is spent in Jasper output, not in the screens I found interesting.

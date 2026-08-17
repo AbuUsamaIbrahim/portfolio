@@ -1,0 +1,95 @@
+---
+index: 1
+title: "BCMS Invoice Pipeline"
+subtitle: "Event-driven postpaid billing at national scale"
+org: "Robi Axiata / RedDot Digital"
+period: "2025 — present"
+role: "Primary author, then technical lead"
+summary: "A chain of Spring Boot services that turns bulk billing XML into ~2 million customer invoices per cycle — parsed, priced, rendered to PDF and delivered — where a single dropped message means someone does not get billed."
+facts:
+  - { label: "Invoices per cycle", value: "~2 million" }
+  - { label: "Services in the chain", value: "6 sharing a contract library" }
+  - { label: "Team", value: "4 engineers" }
+  - { label: "Runtime", value: "Java 21 · Kubernetes" }
+stack: ["Java 21", "Spring Boot 3.5", "Spring Batch", "Apache Kafka", "Redis", "Oracle", "ClickHouse", "Docker", "Helm", "ArgoCD"]
+decisions:
+  - choice: "Kafka between every stage, not direct HTTP calls"
+    rejected: "Synchronous REST chaining between parser, renderer and notifier"
+    because: "A billing run is bursty and long. Synchronous chaining couples the slowest stage to the fastest and turns one slow PDF render into a cascade of timeouts. Topics let each stage consume at its own rate and give the run a natural restart point."
+  - choice: "Redis-held PDF token with a short TTL"
+    rejected: "Passing rendered PDF bytes through the message payload"
+    because: "Invoice PDFs are large and Kafka is not a blob store. The message carries a token; the bytes live in Redis until the notifier claims them. Keeps topics fast and bounds memory when a cycle backs up."
+  - choice: "zstd-compressed payloads with an explicit content-encoding header"
+    rejected: "Raw JSON on the wire"
+    because: "Bill payloads are highly repetitive, so compression pays for itself immediately. The header keeps it honest — a consumer that does not understand the encoding fails loudly instead of decoding garbage."
+  - choice: "One shared contract library across all services"
+    rejected: "Each service defining its own DTOs and topic names"
+    because: "Six services drifting apart on message shape is the classic way an event-driven system rots. One library owns topic naming, compression and DTOs, so a contract change is a compile error rather than a 3am incident."
+  - choice: "ClickHouse alongside Oracle, not instead of it"
+    rejected: "Serving reporting queries from the transactional Oracle schema"
+    because: "Billing writes need Oracle's transactional guarantees; reporting needs to scan a cycle's worth of rows without touching that. Splitting them stopped analytical queries from competing with the run itself."
+diagram: "pipeline"
+accent: "#22d3ee"
+---
+
+## The problem
+
+Postpaid billing has an unforgiving property: it is not eventually consistent in any way a customer
+will accept. A bill that arrives twice is a complaint. A bill that never arrives is lost revenue and,
+at scale, a regulatory problem. The run happens on a cycle, under time pressure, and the input is a
+pile of XML large enough that no single process should be holding it in memory.
+
+The system I inherited and then rebuilt had to take that XML, resolve every customer's charges —
+including corporate hierarchies where a parent account absorbs its children's usage — render a PDF
+per customer, and deliver it. Roughly two million times, reliably, every cycle.
+
+## Shape of the system
+
+Five stages, each its own deployable, connected by Kafka topics rather than calls:
+
+<Diagram />
+
+The parser uses **Spring Batch** because a billing run is genuinely a batch job — it has chunks,
+restartability and a natural failure boundary, and pretending otherwise means rebuilding those
+primitives badly. Everything downstream is stream-shaped, because once a customer's charges are
+resolved, that customer is independent of every other customer.
+
+## The hard part: a producer that stalls without failing
+
+The failure that cost me the most sleep was not a crash. It was silence.
+
+Under a heavy cycle, the Kafka producer could reach a state where it neither threw nor delivered.
+Sends returned futures that simply never completed. Nothing in the health checks noticed, because
+the service was alive, the consumer lag looked plausible, and no exception was ever logged. The run
+just quietly stopped making progress, and we would find out when someone asked where the invoices
+were.
+
+Three changes fixed it, and the order matters:
+
+- **A timeout backstop on every send.** A future that never completes is not an edge case to be
+  tolerated — it is a bug that must become an exception. Bounding it converts an invisible hang into
+  a loud, catchable failure.
+- **Wedged-producer detection and reset.** Once a stall is detectable, the service can tear the
+  producer down and rebuild it rather than sitting in a broken state waiting for a human.
+- **Explicit backpressure on the render stage.** PDF generation is the slowest link. Letting the
+  parser run ahead unbounded just moves the queue from one place to a worse one. Making the fast
+  stage aware of the slow one keeps memory flat and the cycle predictable.
+
+The general lesson I took from it: **in an asynchronous system, absence of an error is not evidence
+of progress.** Anything that can hang must have a clock on it.
+
+## Corporate hierarchies
+
+The other genuinely hard piece was billing structure. A corporate customer is not one account — it
+is a parent with children, where charges roll up, some are settled centrally and some are not, and
+the invoice has to reflect that at both levels. Getting the traversal right, and keeping it correct
+as accounts move between parents mid-cycle, took more care than any of the infrastructure work. It
+is also the part that no diagram makes look impressive, and the part that would have hurt most to
+get wrong.
+
+## What I would do differently
+
+The end-to-end test harness came late. For a long time the only way to know the chain worked was to
+run a cycle and watch. Building the containerised harness — Kafka, mail capture, the whole chain
+cold-startable with one command — should have come first, not after the pipeline was already
+carrying real billing runs.

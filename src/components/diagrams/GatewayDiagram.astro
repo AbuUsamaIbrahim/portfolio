@@ -1,0 +1,81 @@
+---
+import DiagramFrame from './DiagramFrame.astro';
+const A = '#a78bfa';
+---
+
+<DiagramFrame
+  label="svs / secured gateway"
+  caption="One front door. Security is decided in a single auditable place rather than duplicated across every service behind it — where the weakest copy would define the real posture."
+>
+  <svg viewBox="0 0 940 350" class="h-auto w-full" role="img" aria-label="SVS Secured Gateway architecture">
+    <defs>
+      <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill={A} />
+      </marker>
+      <linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color={A} stop-opacity="0.2" />
+        <stop offset="100%" stop-color={A} stop-opacity="0.05" />
+      </linearGradient>
+    </defs>
+
+    {/* ---- clients ---- */}
+    <text x="24" y="30" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">CLIENTS</text>
+    {[
+      { y: 52, t: 'Retail app' },
+      { y: 128, t: 'Field device' },
+      { y: 204, t: 'Partner API' },
+    ].map((c) => (
+      <g>
+        <rect x="24" y={c.y} width="132" height="52" rx="9" fill="#171c26" stroke="#2f3746" />
+        <text x="90" y={c.y + 26} text-anchor="middle" class="fill-[#e8eef7] font-mono text-[10px]">{c.t}</text>
+        <text x="90" y={c.y + 41} text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">signed request</text>
+        <line x1="160" y1={c.y + 26} x2="270" y2="164" stroke={A} stroke-opacity="0.45" stroke-width="1.4" marker-end="url(#ga)" class="flow-line" />
+      </g>
+    ))}
+
+    {/* ---- gateway ---- */}
+    <g>
+      <rect x="278" y="60" width="230" height="208" rx="12" fill="url(#gg)" stroke={A} stroke-opacity="0.75" stroke-width="1.4" />
+      <text x="393" y="88" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[12px] tracking-wide">SECURED GATEWAY</text>
+      <text x="393" y="105" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">Spring Cloud Gateway · WebFlux</text>
+
+      {[
+        { y: 124, t: '1 · verify HMAC signature', s: 'payload integrity + replay' },
+        { y: 170, t: '2 · validate JWT', s: 'caller identity + expiry' },
+        { y: 216, t: '3 · route', s: 'non-blocking forward' },
+      ].map((f) => (
+        <g>
+          <rect x="296" y={f.y} width="194" height="38" rx="7" fill="#0b0e14" stroke="#2f3746" />
+          <text x="308" y={f.y + 16} class="fill-[#e8eef7] font-mono text-[9px]">{f.t}</text>
+          <text x="308" y={f.y + 29} class="fill-[#647082] font-mono text-[8px]">{f.s}</text>
+        </g>
+      ))}
+    </g>
+
+    {/* ---- bypass ---- */}
+    <g>
+      <rect x="278" y="286" width="230" height="34" rx="7" fill="#0b0e14" stroke="#fbbf24" stroke-opacity="0.4" stroke-dasharray="4 3" />
+      <text x="393" y="307" text-anchor="middle" class="fill-[#fbbf24] font-mono text-[9px]">explicit bypass list · multipart, health</text>
+    </g>
+
+    {/* ---- services ---- */}
+    <text x="600" y="30" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">SUBSCRIBER VERIFICATION</text>
+    {[
+      { y: 44, t: 'Fingerprint match', s: 'SourceAFIS' },
+      { y: 106, t: 'NID OCR', s: 'document extract' },
+      { y: 168, t: 'Face match', s: 'biometric' },
+      { y: 230, t: 'Verification core', s: 'decision + audit' },
+    ].map((s) => (
+      <g>
+        <rect x="600" y={s.y} width="316" height="48" rx="9" fill="#171c26" stroke="#2f3746" />
+        <text x="618" y={s.y + 22} class="fill-[#e8eef7] font-mono text-[10px]">{s.t}</text>
+        <text x="618" y={s.y + 37} class="fill-[#647082] font-mono text-[8px]">{s.s}</text>
+        <line x1="512" y1="164" x2="596" y2={s.y + 24} stroke={A} stroke-opacity="0.35" stroke-width="1.2" marker-end="url(#ga)" />
+      </g>
+    ))}
+
+    {/* ---- trust boundary ---- */}
+    <path d="M556 16 v318" stroke="#2f3746" stroke-width="1" stroke-dasharray="6 5" />
+    <text x="562" y="336" class="fill-[#647082] font-mono text-[8px]">trust boundary</text>
+  </svg>
+</DiagramFrame>

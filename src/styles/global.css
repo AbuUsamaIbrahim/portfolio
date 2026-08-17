@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+@theme {
+  /* Surfaces — near-black slate, cool-shifted */
+  --color-void: #07090d;
+  --color-base: #0b0e14;
+  --color-surface: #11151d;
+  --color-raised: #171c26;
+  --color-line: #222835;
+  --color-line-bright: #2f3746;
+
+  /* Text */
+  --color-ink: #e8eef7;
+  --color-ink-dim: #9aa7b8;
+  --color-ink-faint: #647082;
+
+  /* Accents — cyan carries data flow, amber marks decisions */
+  --color-flow: #22d3ee;
+  --color-flow-deep: #0891b2;
+  --color-signal: #fbbf24;
+  --color-danger: #f87171;
+  --color-ok: #4ade80;
+
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+
+  --spacing-gutter: 1.5rem;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Faint engineering grid — sits behind everything, never scrolls focus away */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-line) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-line) 55%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 75%);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-flow) 30%, transparent);
+  color: var(--color-ink);
+}
+
+/* Focus ring — visible, on-brand, never removed */
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-flow);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ---- Reveal on scroll ------------------------------------------------ */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- Animated data flow along diagram paths -------------------------- */
+.flow-line {
+  stroke-dasharray: 5 9;
+  animation: flow-dash 1.4s linear infinite;
+}
+@keyframes flow-dash {
+  to { stroke-dashoffset: -14; }
+}
+
+.pulse-node {
+  animation: node-pulse 2.6s ease-in-out infinite;
+}
+@keyframes node-pulse {
+  0%, 100% { opacity: 0.35; r: 5; }
+  50%      { opacity: 0.9;  r: 7; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .flow-line { animation: none; }
+  .pulse-node { animation: none; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ---- Long-form case study prose -------------------------------------- */
+.prose-tech {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--color-ink-dim);
+}
+.prose-tech > * + * { margin-top: 1.15em; }
+.prose-tech h2 {
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-flow);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.prose-tech h2::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--color-line-bright), transparent);
+}
+.prose-tech h3 {
+  margin-top: 2rem;
+  font-size: 1.1875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.prose-tech strong { color: var(--color-ink); font-weight: 600; }
+.prose-tech a {
+  color: var(--color-flow);
+  text-underline-offset: 3px;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--color-flow) 40%, transparent);
+}
+.prose-tech ul { padding-left: 1.1rem; }
+.prose-tech li { margin-top: 0.5rem; list-style: none; position: relative; }
+.prose-tech ul > li::before {
+  content: "";
+  position: absolute;
+  left: -1.1rem;
+  top: 0.72em;
+  width: 5px;
+  height: 5px;
+  background: var(--color-flow-deep);
+  transform: rotate(45deg);
+}
+.prose-tech code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--color-raised);
+  border: 1px solid var(--color-line);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  color: var(--color-ink);
+}
+.prose-tech pre {
+  background: var(--color-void);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.prose-tech pre code { background: none; border: none; padding: 0; }
+.prose-tech blockquote {
+  border-left: 2px solid var(--color-signal);
+  padding-left: 1.1rem;
+  color: var(--color-ink);
+  font-style: normal;
+}

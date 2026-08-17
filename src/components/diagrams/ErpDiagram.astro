@@ -1,0 +1,105 @@
+---
+import DiagramFrame from './DiagramFrame.astro';
+const A = '#fbbf24';
+---
+
+<DiagramFrame
+  label="iict buet / gas utility erp"
+  caption="One codebase, three utility deployments. The connection lifecycle in the centre is what every other module asks questions of — which is why it is modelled with history rather than a status flag."
+>
+  <svg viewBox="0 0 940 400" class="h-auto w-full" role="img" aria-label="Gas utility ERP architecture">
+    <defs>
+      <marker id="ea" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill={A} />
+      </marker>
+      <radialGradient id="eg">
+        <stop offset="0%" stop-color={A} stop-opacity="0.22" />
+        <stop offset="100%" stop-color={A} stop-opacity="0.04" />
+      </radialGradient>
+    </defs>
+
+    {/* ---- deployments ---- */}
+    <text x="24" y="26" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">DEPLOYMENTS · ONE CODEBASE</text>
+    {[
+      { x: 24, t: 'KGDCL', s: 'Karnaphuli' },
+      { x: 152, t: 'BGDCL', s: 'Bakhrabad' },
+      { x: 280, t: 'SGCL', s: 'Sundarban' },
+    ].map((d) => (
+      <g>
+        <rect x={d.x} y="40" width="112" height="46" rx="8" fill="#171c26" stroke={A} stroke-opacity="0.4" />
+        <text x={d.x + 56} y="62" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[10px]">{d.t}</text>
+        <text x={d.x + 56} y="77" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">{d.s}</text>
+        <line x1={d.x + 56} y1="86" x2={d.x + 56} y2="112" stroke={A} stroke-opacity="0.3" stroke-width="1" stroke-dasharray="3 3" />
+      </g>
+    ))}
+
+    {/* ---- grails monolith ---- */}
+    <g>
+      <rect x="24" y="112" width="480" height="248" rx="12" fill="#0b0e14" stroke="#2f3746" />
+      <text x="44" y="136" class="fill-[#e8eef7] font-mono text-[11px]">Grails monolith</text>
+      <text x="44" y="152" class="fill-[#647082] font-mono text-[8px]">~90 controllers · 15 modules · Groovy</text>
+
+      {/* connection lifecycle core */}
+      <ellipse cx="264" cy="248" rx="132" ry="60" fill="url(#eg)" stroke={A} stroke-opacity="0.65" />
+      <text x="264" y="240" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">CONNECTION LIFECYCLE</text>
+      <text x="264" y="258" text-anchor="middle" class="fill-[#fbbf24] font-mono text-[8px]">modelled with history, not a flag</text>
+      <text x="264" y="274" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">demand note → seal → dispute → reconnect</text>
+
+      {/* orbiting modules */}
+      {[
+        { x: 48, y: 176, t: 'Customer' },
+        { x: 158, y: 176, t: 'Metering' },
+        { x: 268, y: 176, t: 'Billing' },
+        { x: 378, y: 176, t: 'Revenue' },
+        { x: 48, y: 322, t: 'Vigilance' },
+        { x: 158, y: 322, t: 'Legal / suits' },
+        { x: 268, y: 322, t: 'Store · HR' },
+        { x: 378, y: 322, t: 'Reports' },
+      ].map((m) => (
+        <g>
+          <rect x={m.x} y={m.y} width="98" height="26" rx="6" fill="#171c26" stroke="#2f3746" />
+          <text x={m.x + 49} y={m.y + 17} text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">{m.t}</text>
+        </g>
+      ))}
+    </g>
+
+    {/* ---- oracle ---- */}
+    <g>
+      <ellipse cx="596" cy="212" rx="52" ry="9" fill="#171c26" stroke="#2f3746" />
+      <path d="M544 212 v52 a52 9 0 0 0 104 0 v-52" fill="#171c26" stroke="#2f3746" />
+      <ellipse cx="596" cy="264" rx="52" ry="9" fill="none" stroke="#2f3746" opacity="0.6" />
+      <text x="596" y="236" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[10px]">Oracle</text>
+      <text x="596" y="252" text-anchor="middle" class="fill-[#fbbf24] font-mono text-[8px]">PL/SQL billing</text>
+      <text x="596" y="292" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">set-shaped work,</text>
+      <text x="596" y="304" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">next to the data</text>
+      <line x1="504" y1="236" x2="540" y2="236" stroke={A} stroke-opacity="0.5" stroke-width="1.4" marker-end="url(#ea)" class="flow-line" />
+    </g>
+
+    {/* ---- rest api layer ---- */}
+    <g>
+      <rect x="700" y="112" width="216" height="86" rx="10" fill="#11151d" stroke={A} stroke-opacity="0.5" />
+      <text x="808" y="140" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">Spring Boot REST API</text>
+      <text x="808" y="158" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">JWT · Swagger · Spring Data</text>
+      <text x="808" y="178" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">added alongside, not inside</text>
+      <line x1="648" y1="212" x2="756" y2="202" stroke={A} stroke-opacity="0.4" stroke-width="1.2" marker-end="url(#ea)" />
+    </g>
+
+    {/* ---- new clients ---- */}
+    {[
+      { y: 236, t: 'Web portal' },
+      { y: 296, t: 'Mobile client' },
+    ].map((c) => (
+      <g>
+        <rect x="754" y={c.y} width="162" height="44" rx="8" fill="#171c26" stroke="#2f3746" />
+        <text x="835" y={c.y + 27} text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[10px]">{c.t}</text>
+        <line x1="808" y1="198" x2="808" y2={c.y - 4} stroke={A} stroke-opacity="0.35" stroke-width="1.2" marker-end="url(#ea)" />
+      </g>
+    ))}
+
+    {/* ---- jasper ---- */}
+    <g>
+      <rect x="700" y="352" width="216" height="34" rx="7" fill="#0b0e14" stroke="#2f3746" stroke-dasharray="4 3" />
+      <text x="808" y="374" text-anchor="middle" class="fill-[#647082] font-mono text-[9px]">Jasper Reports — the actual product, for operators</text>
+    </g>
+  </svg>
+</DiagramFrame>

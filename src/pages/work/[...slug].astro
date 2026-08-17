@@ -1,0 +1,150 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import PipelineDiagram from '../../components/diagrams/PipelineDiagram.astro';
+import LedgerDiagram from '../../components/diagrams/LedgerDiagram.astro';
+import GatewayDiagram from '../../components/diagrams/GatewayDiagram.astro';
+import ErpDiagram from '../../components/diagrams/ErpDiagram.astro';
+
+export async function getStaticPaths() {
+  const studies = await getCollection('case-studies', ({ data }) => !data.draft);
+  const sorted = studies.sort((a, b) => a.data.index - b.data.index);
+  return sorted.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: { entry, next: sorted[(i + 1) % sorted.length] },
+  }));
+}
+
+const { entry, next } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+
+const diagrams = {
+  pipeline: PipelineDiagram,
+  ledger: LedgerDiagram,
+  gateway: GatewayDiagram,
+  erp: ErpDiagram,
+} as const;
+const Diagram = diagrams[d.diagram];
+---
+
+<Layout title={`${d.title} — Mahadi Hasan`} description={d.summary}>
+  <article class="mx-auto max-w-3xl px-5 pt-14 pb-10">
+    {/* ---- header ---- */}
+    <a
+      href="/#work"
+      class="inline-flex items-center gap-2 font-mono text-[11px] text-[var(--color-ink-faint)] transition-colors hover:text-[var(--color-ink-dim)]"
+    >
+      ← All case studies
+    </a>
+
+    <p class="mt-8 font-mono text-[11px] tracking-[0.2em] uppercase" style={`color:${d.accent}`}>
+      {String(d.index).padStart(2, '0')} — {d.org}
+    </p>
+
+    <h1 class="mt-4 text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl">
+      {d.title}
+    </h1>
+    <p class="mt-4 text-lg text-[var(--color-ink-dim)]">{d.subtitle}</p>
+
+    <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] text-[var(--color-ink-faint)]">
+      <span>{d.period}</span>
+      <span>{d.role}</span>
+    </div>
+
+    {/* ---- fact strip ---- */}
+    <dl
+      class="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-4"
+    >
+      {
+        d.facts.map((f) => (
+          <div class="bg-[var(--color-base)] px-4 py-4">
+            <dt class="font-mono text-[9px] tracking-[0.1em] text-[var(--color-ink-faint)] uppercase">
+              {f.label}
+            </dt>
+            <dd class="mt-1.5 font-mono text-sm" style={`color:${d.accent}`}>
+              {f.value}
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+
+    {/* ---- body ---- */}
+    <div class="prose-tech mt-12">
+      <Content components={{ Diagram }} />
+    </div>
+
+    {/* ---- decisions ---- */}
+    <section class="mt-16">
+      <h2 class="flex items-center gap-3 font-mono text-[13px] tracking-[0.14em] uppercase" style={`color:${d.accent}`}>
+        Decisions &amp; trade-offs
+        <span class="h-px flex-1 bg-gradient-to-r from-[var(--color-line-bright)] to-transparent"></span>
+      </h2>
+      <p class="mt-3 text-[15px] text-[var(--color-ink-dim)]">
+        Every choice below had a credible alternative. These are the ones I turned down, and why.
+      </p>
+
+      <ol class="mt-8 space-y-4">
+        {
+          d.decisions.map((dec, i) => (
+            <li class="reveal rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]/40 p-5 sm:p-6">
+              <div class="flex gap-4">
+                <span class="mt-0.5 font-mono text-[11px] text-[var(--color-ink-faint)]">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div class="min-w-0 flex-1">
+                  <p class="flex flex-wrap items-baseline gap-2 font-semibold text-[var(--color-ink)]">
+                    <span
+                      class="rounded px-1.5 py-0.5 font-mono text-[9px] tracking-wider uppercase"
+                      style={`background:${d.accent}1a;color:${d.accent}`}
+                    >
+                      chose
+                    </span>
+                    {dec.choice}
+                  </p>
+                  <p class="mt-3 flex flex-wrap items-baseline gap-2 text-[var(--color-ink-dim)] line-through decoration-[var(--color-danger)]/40">
+                    <span class="rounded bg-[var(--color-danger)]/10 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-[var(--color-danger)] uppercase no-underline">
+                      not
+                    </span>
+                    {dec.rejected}
+                  </p>
+                  <p class="mt-4 border-l-2 border-[var(--color-line-bright)] pl-4 text-[15px] leading-relaxed text-[var(--color-ink-dim)]">
+                    {dec.because}
+                  </p>
+                </div>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    {/* ---- stack ---- */}
+    <section class="mt-14">
+      <h2 class="font-mono text-[11px] tracking-[0.14em] text-[var(--color-ink-faint)] uppercase">Stack</h2>
+      <div class="mt-4 flex flex-wrap gap-1.5">
+        {
+          d.stack.map((t) => (
+            <span class="rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--color-ink-dim)]">
+              {t}
+            </span>
+          ))
+        }
+      </div>
+    </section>
+
+    {/* ---- next ---- */}
+    <a
+      href={`/work/${next.id}/`}
+      class="group mt-16 block rounded-xl border border-[var(--color-line)] p-6 transition-colors hover:border-[var(--color-line-bright)] hover:bg-[var(--color-surface)]/50"
+    >
+      <span class="font-mono text-[10px] tracking-[0.18em] text-[var(--color-ink-faint)] uppercase">Next case study</span>
+      <p class="mt-2 flex items-center justify-between gap-4 text-lg font-semibold text-[var(--color-ink)]">
+        {next.data.title}
+        <span class="transition-transform group-hover:translate-x-1">→</span>
+      </p>
+      <p class="mt-1 font-mono text-[11px] text-[var(--color-ink-faint)]">{next.data.subtitle}</p>
+    </a>
+  </article>
+</Layout>

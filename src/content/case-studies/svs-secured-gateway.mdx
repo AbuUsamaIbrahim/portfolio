@@ -1,0 +1,84 @@
+---
+index: 3
+title: "SVS Secured Gateway"
+subtitle: "A reactive trust boundary in front of subscriber verification"
+org: "RedDot Digital"
+period: "2024"
+role: "Sole author"
+summary: "A Spring Cloud Gateway built from nothing to sit in front of subscriber verification services — signing every request with HMAC, validating JWTs, and giving a sprawl of internal services exactly one front door."
+facts:
+  - { label: "Scope", value: "Built from scratch, solo" }
+  - { label: "Model", value: "Reactive · non-blocking" }
+  - { label: "Auth", value: "HMAC signing + JWT" }
+  - { label: "Fronting", value: "Subscriber verification services" }
+stack: ["Java", "Spring Cloud Gateway", "Spring WebFlux", "Project Reactor", "JWT / Nimbus JOSE", "HMAC"]
+decisions:
+  - choice: "Spring Cloud Gateway on WebFlux, not a servlet-based proxy"
+    rejected: "A blocking Spring MVC gateway with a thread per request"
+    because: "A gateway is almost entirely I/O wait — it does very little work of its own. A thread-per-request model spends its memory on parked threads waiting for downstream calls. Reactive keeps the footprint flat when downstream services get slow, which is exactly when a gateway must not fall over."
+  - choice: "HMAC request signing in addition to JWT"
+    rejected: "Bearer-token authentication alone"
+    because: "A JWT proves who is calling. It does not prove the request body was not altered in transit or replayed. Signing binds the caller to the exact payload, which matters when the payload is an identity verification."
+  - choice: "An explicit, configurable bypass list"
+    rejected: "Hardcoding exceptions for multipart uploads and public endpoints"
+    because: "There will always be endpoints that legitimately cannot be signed — file uploads, health checks, callbacks. Making that list explicit and reviewable is safer than scattering conditionals through filters, because it turns 'what is unprotected?' into a question with one answer."
+  - choice: "One gateway in front of the estate, not per-service security"
+    rejected: "Each verification service implementing its own auth filter"
+    because: "Security logic duplicated across services drifts, and the weakest copy defines your actual posture. Centralising it means one place to audit and one place to fix."
+diagram: "gateway"
+accent: "#a78bfa"
+---
+
+## The problem
+
+Subscriber verification is where a telecom decides whether a person is who they claim to be, against
+national identity data. The services behind it were internal, numerous, and each had grown its own
+ideas about authentication.
+
+That is a bad shape for a trust boundary. If eight services each implement their own auth, you do
+not have eight defences — you have one, and it is whichever is weakest. What was needed was a single
+front door that every call passes through, with security decided in one auditable place.
+
+## Shape of the system
+
+<Diagram />
+
+The gateway is small on purpose. It routes, it verifies, it forwards. It holds no business logic,
+because a component that everything depends on should be a component you rarely need to change.
+
+## Why reactive was the right call here
+
+A gateway is close to a pure I/O machine. For any given request it parses headers, computes a
+signature, and then waits — often far longer than it spent working — for a downstream service to
+answer.
+
+With a thread-per-request model, that waiting is expensive: each in-flight request holds a thread
+and its stack, so the moment a downstream service slows down, in-flight requests pile up and the
+gateway exhausts its pool. The failure mode is the worst one available — **the component protecting
+everything falls over precisely when something behind it is already struggling.**
+
+WebFlux inverts that. Waiting costs a continuation, not a thread. Downstream slowness becomes
+latency the gateway can survive rather than an outage it causes. That is the entire argument, and it
+is why the reactive complexity was worth paying for here and would not have been in a CRUD service.
+
+## HMAC on top of JWT
+
+These answer different questions and the distinction is worth being precise about:
+
+- **JWT** answers *who is calling* — a signed claim of identity with an expiry.
+- **HMAC request signing** answers *is this exact request intact and fresh* — the caller signs the
+  payload with a shared secret, so any modification in transit invalidates it.
+
+For an identity-verification API, the second question is not optional. A valid token attached to a
+tampered or replayed body is precisely the attack worth stopping, and a bearer token alone does not
+stop it.
+
+## The unglamorous part: the bypass list
+
+Some endpoints genuinely cannot be signed. Multipart uploads do not have a stable body to sign the
+way a JSON request does. Health checks are called by infrastructure that holds no secret.
+
+The temptation is to special-case these inside the filter chain with a few conditionals. I made the
+list explicit and configurable instead, because the question a security review actually asks is
+*"which paths are unprotected, and who decided that?"* — and that should have a single, readable
+answer rather than requiring someone to trace the filter logic.

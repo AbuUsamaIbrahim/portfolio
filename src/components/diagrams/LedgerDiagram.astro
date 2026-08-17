@@ -1,0 +1,80 @@
+---
+import DiagramFrame from './DiagramFrame.astro';
+const A = '#4ade80';
+---
+
+<DiagramFrame
+  label="firstcash / ledger core"
+  caption="Every product expresses itself as journal entries. Nothing writes a balance directly — the balance is derived, which is what makes a disputed transaction answerable."
+>
+  <svg viewBox="0 0 940 372" class="h-auto w-full" role="img" aria-label="FirstCash MFS ledger architecture">
+    <defs>
+      <marker id="la" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill={A} />
+      </marker>
+      <linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color={A} stop-opacity="0.18" />
+        <stop offset="100%" stop-color={A} stop-opacity="0.05" />
+      </linearGradient>
+    </defs>
+
+    {/* ---- products ---- */}
+    <text x="40" y="30" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">PRODUCTS</text>
+    {[
+      { x: 40, t: 'Wallet', s: 'customer' },
+      { x: 216, t: 'Agent Banking', s: 'DSR · DO · distributor' },
+      { x: 392, t: 'EPMS', s: 'institution fees' },
+      { x: 568, t: 'Bill Payment', s: 'merchant' },
+    ].map((n) => (
+      <g>
+        <rect x={n.x} y="44" width="160" height="60" rx="9" fill="#171c26" stroke="#2f3746" />
+        <text x={n.x + 80} y="70" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">{n.t}</text>
+        <text x={n.x + 80} y="87" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">{n.s}</text>
+        <line x1={n.x + 80} y1="104" x2={n.x + 80} y2="140" stroke={A} stroke-opacity="0.45" stroke-width="1.4" marker-end="url(#la)" class="flow-line" />
+      </g>
+    ))}
+
+    {/* ---- api / policy layer ---- */}
+    <g>
+      <rect x="40" y="140" width="688" height="56" rx="9" fill="#11151d" stroke={A} stroke-opacity="0.45" />
+      <text x="384" y="164" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">API &amp; Policy Layer</text>
+      <text x="384" y="182" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">
+        role resolution · transaction-limit validation · authorisation
+      </text>
+      <line x1="384" y1="196" x2="384" y2="232" stroke={A} stroke-opacity="0.45" stroke-width="1.4" marker-end="url(#la)" class="flow-line" />
+    </g>
+
+    {/* ---- core ledger ---- */}
+    <g>
+      <rect x="180" y="232" width="408" height="80" rx="10" fill="url(#lg)" stroke={A} stroke-opacity="0.75" stroke-width="1.4" />
+      <text x="384" y="262" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[12px] tracking-wide">CORE LEDGER</text>
+      <text x="384" y="281" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">double-entry · append-only journal</text>
+      <text x="384" y="298" text-anchor="middle" class="fill-[#4ade80] font-mono text-[9px]">debit = credit, always</text>
+    </g>
+
+    {/* ---- fineract + postgres ---- */}
+    <g>
+      <rect x="628" y="232" width="140" height="52" rx="9" fill="#171c26" stroke="#2f3746" />
+      <text x="698" y="254" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[10px]">Apache Fineract</text>
+      <text x="698" y="270" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[8px]">GL · statements · EOD</text>
+      <line x1="588" y1="262" x2="624" y2="262" stroke={A} stroke-opacity="0.5" stroke-width="1.4" marker-end="url(#la)" class="flow-line" />
+    </g>
+
+    <g>
+      <ellipse cx="120" cy="248" rx="46" ry="8" fill="#171c26" stroke="#2f3746" />
+      <path d="M74 248 v40 a46 8 0 0 0 92 0 v-40" fill="#171c26" stroke="#2f3746" />
+      <ellipse cx="120" cy="288" rx="46" ry="8" fill="none" stroke="#2f3746" opacity="0.6" />
+      <text x="120" y="270" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[10px]">PostgreSQL</text>
+      <line x1="176" y1="268" x2="166" y2="268" stroke="#2f3746" stroke-width="1" />
+    </g>
+
+    {/* ---- reversal note ---- */}
+    <g>
+      <path d="M384 312 v22 h176" fill="none" stroke="#fbbf24" stroke-opacity="0.5" stroke-width="1.2" stroke-dasharray="3 3" />
+      <circle cx="384" cy="312" r="3" fill="#fbbf24" class="pulse-node" />
+      <text x="570" y="338" class="fill-[#fbbf24] font-mono text-[9px]">reversal = compensating entry, never a delete</text>
+    </g>
+
+    <text x="40" y="226" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">LEDGER</text>
+  </svg>
+</DiagramFrame>

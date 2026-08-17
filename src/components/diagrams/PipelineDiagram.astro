@@ -1,0 +1,98 @@
+---
+import DiagramFrame from './DiagramFrame.astro';
+const A = '#22d3ee';
+---
+
+<DiagramFrame
+  label="bcms / invoice pipeline"
+  caption="Each stage is an independent deployable. Kafka topics between them mean the slow stage (PDF rendering) never stalls the fast one — it just consumes at its own rate."
+>
+  <svg viewBox="0 0 940 330" class="h-auto w-full" role="img" aria-label="BCMS invoice pipeline architecture">
+    <defs>
+      <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill={A} />
+      </marker>
+      <linearGradient id="pg" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color={A} stop-opacity="0.06" />
+        <stop offset="100%" stop-color={A} stop-opacity="0.16" />
+      </linearGradient>
+    </defs>
+
+    {/* ---- source ---- */}
+    <g>
+      <path d="M20 96 h96 v76 h-96 z" fill="#171c26" stroke="#2f3746" />
+      <path d="M20 96 l14 -14 h96 v76 l-14 14" fill="none" stroke="#2f3746" opacity="0.5" />
+      <text x="68" y="128" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">Billing XML</text>
+      <text x="68" y="145" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">bulk · per cycle</text>
+    </g>
+
+    {/* ---- stages ---- */}
+    {[
+      { x: 176, t: 'XML Parser', s: 'Spring Batch' },
+      { x: 388, t: 'PDF Generator', s: 'Thymeleaf · PDFBox' },
+      { x: 600, t: 'Notification', s: 'Spring Mail' },
+    ].map((n) => (
+      <g>
+        <rect x={n.x} y="96" width="152" height="76" rx="9" fill="url(#pg)" stroke={A} stroke-opacity="0.5" />
+        <text x={n.x + 76} y="128" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">{n.t}</text>
+        <text x={n.x + 76} y="146" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">{n.s}</text>
+      </g>
+    ))}
+
+    {/* ---- sink ---- */}
+    <g>
+      <rect x="812" y="96" width="108" height="76" rx="9" fill="#171c26" stroke="#2f3746" />
+      <text x="866" y="128" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">Customer</text>
+      <text x="866" y="146" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">~2M / cycle</text>
+    </g>
+
+    {/* ---- flows ---- */}
+    {[
+      { x1: 118, x2: 172, label: null },
+      { x1: 330, x2: 384, label: 'reports.v1' },
+      { x1: 542, x2: 596, label: 'notifications.v1' },
+      { x1: 754, x2: 808, label: null },
+    ].map((f) => (
+      <g>
+        <line x1={f.x1} y1="134" x2={f.x2} y2="134" stroke={A} stroke-width="1.6" marker-end="url(#pa)" class="flow-line" />
+        {f.label && (
+          <text x={(f.x1 + f.x2) / 2} y="120" text-anchor="middle" class="fill-[#22d3ee] font-mono text-[8px]">
+            {f.label}
+          </text>
+        )}
+      </g>
+    ))}
+
+    {/* ---- kafka bus ---- */}
+    <g>
+      <rect x="176" y="34" width="576" height="34" rx="7" fill="#11151d" stroke={A} stroke-opacity="0.3" stroke-dasharray="4 4" />
+      <text x="464" y="56" text-anchor="middle" class="fill-[#22d3ee] font-mono text-[10px] tracking-[0.2em]">APACHE KAFKA</text>
+      {[330, 542].map((x) => (
+        <line x1={x} y1="68" x2={x} y2="96" stroke={A} stroke-opacity="0.28" stroke-width="1" stroke-dasharray="3 3" />
+      ))}
+    </g>
+
+    {/* ---- stores ---- */}
+    {[
+      { x: 300, t: 'Redis', s: 'PDF token · TTL 300s', c: '#f87171' },
+      { x: 470, t: 'Oracle', s: 'transactional', c: '#9aa7b8' },
+      { x: 640, t: 'ClickHouse', s: 'reporting scans', c: '#fbbf24' },
+    ].map((d) => (
+      <g>
+        <ellipse cx={d.x} cy="228" rx="52" ry="9" fill="#171c26" stroke="#2f3746" />
+        <path d={`M${d.x - 52} 228 v34 a52 9 0 0 0 104 0 v-34`} fill="#171c26" stroke="#2f3746" />
+        <ellipse cx={d.x} cy="262" rx="52" ry="9" fill="none" stroke="#2f3746" opacity="0.6" />
+        <text x={d.x} y="250" text-anchor="middle" class="font-mono text-[10px]" fill={d.c}>{d.t}</text>
+        <text x={d.x} y="292" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">{d.s}</text>
+        <line x1={d.x} y1="172" x2={d.x} y2="219" stroke="#2f3746" stroke-width="1" stroke-dasharray="3 4" />
+      </g>
+    ))}
+
+    {/* ---- backpressure annotation ---- */}
+    <g>
+      <path d="M464 96 q0 -18 -60 -18" fill="none" stroke="#fbbf24" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3" />
+      <circle cx="464" cy="96" r="3" fill="#fbbf24" class="pulse-node" />
+      <text x="398" y="74" text-anchor="end" class="fill-[#fbbf24] font-mono text-[8px]">backpressure ↩</text>
+    </g>
+  </svg>
+</DiagramFrame>
