@@ -4,7 +4,7 @@ const A = '#fbbf24';
 ---
 
 <DiagramFrame
-  label="iict buet / gas utility erp"
+  label="gas utility erp"
   caption="One codebase, three utility deployments. The connection lifecycle in the centre is what every other module asks questions of — which is why it is modelled with history rather than a status flag."
 >
   <svg viewBox="0 0 940 400" class="h-auto w-full" role="img" aria-label="Gas utility ERP architecture">
@@ -21,9 +21,9 @@ const A = '#fbbf24';
     {/* ---- deployments ---- */}
     <text x="24" y="26" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">DEPLOYMENTS · ONE CODEBASE</text>
     {[
-      { x: 24, t: 'KGDCL', s: 'Karnaphuli' },
-      { x: 152, t: 'BGDCL', s: 'Bakhrabad' },
-      { x: 280, t: 'SGCL', s: 'Sundarban' },
+      { x: 24, t: 'Utility A', s: 'deployment 1' },
+      { x: 152, t: 'Utility B', s: 'deployment 2' },
+      { x: 280, t: 'Utility C', s: 'deployment 3' },
     ].map((d) => (
       <g>
         <rect x={d.x} y="40" width="112" height="46" rx="8" fill="#171c26" stroke={A} stroke-opacity="0.4" />

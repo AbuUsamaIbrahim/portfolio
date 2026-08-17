@@ -1,0 +1,109 @@
+---
+index: 3
+title: "Bank MFS Platform"
+subtitle: "A mobile banking core on Cyclos 3, and the agent hierarchy above it"
+org: "RedDot Digital · a commercial bank"
+period: "2023 — 2024"
+role: "Senior Software Engineer · reviewer and merger for the team"
+summary: "The bank's mobile financial services product: a Cyclos-based core where every customer, agent, distributor and merchant is a wallet, and a single cash-in decomposes into a principal transaction plus its fee and commission children."
+facts:
+  - { label: "Core engine", value: "Cyclos 3.7.3" }
+  - { label: "Wallet types", value: "Customer · Agent · Distributor · Merchant" }
+  - { label: "Txn model", value: "Parent + commission children" }
+  - { label: "Also built", value: "EPMS education payments" }
+stack: ["Java", "Spring Boot", "Cyclos 3", "PostgreSQL", "REST", "Spring Security", "JWT"]
+decisions:
+  - choice: "Cyclos as the MFS engine rather than a hand-rolled wallet ledger"
+    rejected: "Building balances, transaction types and commission rules in-house"
+    because: "Cyclos already models members, accounts, transfer types and the fee and commission rules that hang off them. Rebuilding that is months of work whose only distinguishing feature would be that it is less tested. The value we could add was the distribution hierarchy and the products on top, not a fourth reimplementation of double-entry."
+  - choice: "Model every participant as a wallet, including the system itself"
+    rejected: "Separate account concepts for customers, agents and system floats"
+    because: "Every movement then has the same shape — from a wallet to a wallet — whether it is a bank cash-in from the system master account or a customer sending money to a friend. One transaction primitive covers the whole product, and reconciliation never has to special-case an actor type."
+  - choice: "One business operation becomes a parent transaction with children"
+    rejected: "Folding fee and commission into the principal amount"
+    because: "A cash-in at an agent point is three movements: the principal, the customer's fee, and the agent's commission. Netting them into one number destroys the information the agent, the customer and the finance team each need. Linking them as parent and children keeps every leg individually visible and individually reversible."
+  - choice: "Expose fee and commission through an estimate endpoint before the transaction"
+    rejected: "Returning charges only on the completed transaction"
+    because: "An agent needs to tell a customer what a cash-out will cost before taking their money. Computing charges by the same path that will later execute them means the quoted number and the charged number cannot drift."
+diagram: "ledger"
+accent: "#4ade80"
+---
+
+## The problem
+
+Mobile financial services in Bangladesh are, for many people, the only banking they have. That sets
+the bar: correct about money in a way most software never has to be. No acceptable rounding error,
+no acceptable "eventually", and every movement explainable months later.
+
+The platform is the bank's MFS product. It had to hold balances for customers, agents, distributors and
+merchants, move money between all of them, price each movement, pay commissions down the
+distribution chain, and settle at end of day.
+
+## Shape of the system
+
+<Diagram />
+
+The core is **Cyclos 3.7.3**, an open-source mobile banking platform, wrapped in a REST API that
+exposes wallet and transaction operations to everything above it. Cyclos supplies the ledger
+primitives — members, accounts, transfer types, fee and commission rules. What we built on top is
+the distribution hierarchy, the product behaviour and the integrations.
+
+Every participant is a wallet, identified by mobile number. So is the system itself: a bank cash-in
+is a transfer from the MFS master account to a distributor, using the same primitive as a customer
+sending money to a friend.
+
+## The transaction model, which is the real design
+
+The piece worth explaining is what happens when an agent gives a customer cash.
+
+That single business event is not one transaction. It is a **parent** — the principal moving from
+the agent's wallet to the customer's — plus **children** for the fee the customer pays and the
+commission the agent earns. Each child carries its own transaction number, its own type, and its own
+reversibility flag, and links back to the parent.
+
+```
+CASH_IN_FROM_MFS_AGENT   agent → customer      1000.00   parent
+  └─ Agent Commission    system → agent           5.00   child
+```
+
+Netting those into a single amount would have been simpler and would have destroyed the product.
+The agent's commission statement, the customer's fee disclosure and the bank's revenue reporting all
+read the same underlying rows — they just read different legs of them.
+
+The transaction types map directly to what an MFS product actually does: `BANK_CASHIN`,
+`TOPUP_AGENT`, `CASH_IN_FROM_MFS_AGENT`, `SEND_MONEY`, `CASH_OUT_TO_MFS_AGENT`, `BANK_CASHOUT`,
+`CASHOUT_AGENT_DISTRIBUTOR`, `PAYMENT`, `BILL_PAYMENT`, `MOBILE_RECHARGE`. Each is a named transfer
+type in the engine with its own fee and commission rules, rather than a branch in application code.
+
+## The distribution hierarchy
+
+Above the ledger sits the part that made the domain interesting. A DSR transacts under a DO, who
+sits under a distributor. Each level has its own transaction ceilings, its own visibility into the
+levels below, and its own commission structure.
+
+That produced work that reads as mundane in a commit log and is not:
+
+- **Transaction-limit validation** that resolves the acting role, walks to the correct ceiling, and
+  refuses cleanly — before any ledger entry exists, not after.
+- **Agent and limit-info listings** scoped so a DSR sees their own book and a DO sees theirs,
+  without a query that quietly leaks the whole hierarchy.
+- **Distributor commission disbursement**, money movement driven by aggregate performance and
+  therefore required to be both correct and reproducible at reporting time.
+
+## EPMS, on the same rails
+
+The platform extended into institutional collections: fee creation and configuration, bulk student
+import, and academic-year dashboards showing paid against unpaid.
+
+The bulk import is the piece I would point at. Importing thousands of student records from a
+spreadsheet produced by a school office is an exercise in handling data that is wrong in every
+possible way. Rather than reject a file on the first bad row, the importer validates every row,
+imports what is valid, and reports the failures with reasons and a downloadable list — so the office
+fixes ten rows instead of hunting through three thousand.
+
+## On reviewing before I had the title
+
+This is the period where I was already reviewing and merging the team's pull requests. Not because
+of a title — I was a senior engineer — but because someone had to hold the line on what entered the
+release branch of a system that moves money. It is the work that led to leading a team, and it
+taught me more about design than writing the code did.

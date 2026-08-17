@@ -1,0 +1,104 @@
+---
+index: 2
+title: "Digital Wallet & Payment Platform"
+subtitle: "An MFS and payment-service platform decomposed into ~32 services"
+org: "RedDot Digital"
+period: "2025"
+role: "Core ledger & CBS integration · repository maintainer for the release line"
+summary: "A digital wallet and payment-service platform built as a genuine microservice estate — wallet, payments, cash-out, merchant, KYC, loyalty, ISO 8583 card rails — with Apache Fineract as the core banking system underneath it."
+facts:
+  - { label: "Services", value: "~32 in the core group" }
+  - { label: "Core banking", value: "Apache Fineract" }
+  - { label: "Card rails", value: "ISO 8583 middleware" }
+  - { label: "My scope", value: "Ledger, CBS, release line" }
+stack: ["Java", "Spring Boot", "Apache Fineract", "Apache Kafka", "PostgreSQL", "Kubernetes", "ISO 8583", "REST"]
+decisions:
+  - choice: "Decompose by transaction capability, not by layer"
+    rejected: "A single wallet service with internal modules"
+    because: "Send-money, cash-out, external fund transfer and merchant payment have genuinely different risk profiles, rate limits and regulatory reporting. Separate services let cash-out be hardened and throttled independently of send-money, instead of one deploy carrying every risk in the platform."
+  - choice: "A dedicated deduplication service on the transaction path"
+    rejected: "Per-service idempotency keys handled locally"
+    because: "In payments, a retried request is not an edge case — it is the normal behaviour of a mobile client on a bad network. Idempotency implemented separately in a dozen services means a dozen subtly different definitions of duplicate. Centralising it makes 'have we already processed this?' one answer for the whole platform."
+  - choice: "A central unique-ID generator service"
+    rejected: "Database sequences or UUIDs generated per service"
+    because: "Transaction references are customer-facing and appear on statements, in support calls and in regulatory reports. They need to be collision-free across services and ideally short and readable. Per-service sequences cannot guarantee the first; UUIDs fail the second."
+  - choice: "Fineract as the core banking system, integrated not embedded"
+    rejected: "Implementing GL accounts, journals and end-of-day inside the wallet services"
+    because: "Accounting semantics are the part an auditor will scrutinise line by line. Using a mature core banking system means the ledger rules are ones we can point at rather than defend from scratch — and it keeps the wallet services focused on product behaviour."
+  - choice: "ISO 8583 isolated behind a middleware service"
+    rejected: "Speaking the card protocol from the services that need it"
+    because: "ISO 8583 is a fixed-format, decades-old binary protocol with none of the ergonomics of the rest of the estate. Quarantining it in one adapter means exactly one service carries that complexity, and everything else talks ordinary JSON."
+diagram: "microservices"
+accent: "#38bdf8"
+---
+
+## The problem
+
+It is a wallet and payment-service platform: customers hold balances, send money, cash out
+through agents, pay merchants, top up phones, settle bills and move money to and from banks. It also
+has to reach the card networks, satisfy KYC, and produce numbers a central bank will accept.
+
+That is not one product. It is a dozen products sharing a balance, and the architecture reflects
+that — roughly thirty-two services in the core group alone, with more across bill payment, cards,
+USSD, school payments and the admin portals.
+
+## Shape of the system
+
+<Diagram />
+
+The estate divides cleanly into three bands, and the discipline is in not letting them blur:
+
+- **Edge** — an aggregator gateway and per-client gateways, two-factor auth, device binding, and a
+  discovery service so nothing hardcodes a peer's address.
+- **Transaction capabilities** — send money, cash-out, payment, external fund transfer, top-up,
+  merchant, ewallet. Each owns one kind of money movement.
+- **Platform services** — deduplication, unique-ID generation, notification, scheduler, file,
+  metadata, Kafka transport, transaction analytics.
+
+Underneath all of it sits **Apache Fineract** as the core banking system, holding the general
+ledger, journal entries and end-of-day.
+
+## Why this is a microservice estate and the billing pipeline is not
+
+I have built both, and the honest answer is that the shape follows the risk, not the fashion.
+
+The [invoice pipeline](/work/invoice-pipeline/) is five services because a billing run has
+five genuine stages, and its problem is throughput. This platform is thirty-two because a payments product
+has thirty-two genuinely different failure and compliance profiles. Cash-out is the highest-fraud
+path in any MFS product; send-money is the highest-volume; external fund transfer touches an
+external bank and inherits its downtime. Putting those in one deployable means every release carries
+the risk of all three.
+
+That is the argument for splitting. It is also the whole cost: thirty-two services means thirty-two
+pipelines, and a transaction that spans several of them has no database transaction to hide behind.
+
+## Where I worked
+
+I want to be precise about scope rather than claim the estate.
+
+My work concentrated on the **money-truth layer** — the wallet core service and its integration with
+Fineract — and on the **release line**:
+
+- **General-ledger account statements** surfaced out of Fineract, so a balance shown to a customer
+  and a balance in the core banking system are the same number with the same derivation.
+- **End-of-day CBS reporting** and payment-type handling — the daily close where discrepancies
+  either surface or compound silently.
+- **Transaction reversal** across the platform, implemented as compensating entries so history stays
+  intact and reconciliation stays possible.
+- **Repository maintainer** on the wallet core and portal repositories: reviewing and approving what
+  entered the release branch of a system that moves other people's money.
+
+That last one is not a coding contribution and it mattered more than the others. On a thirty-two
+service estate, the release line *is* the architecture — it is the only place where the whole
+platform is considered at once.
+
+## The lesson I would carry to the next one
+
+Distributed money movement makes you confront a thing monoliths let you avoid: **there is no
+transaction boundary around a business operation.** A cash-out spans several services, and no
+database will roll it back for you.
+
+What actually holds it together is unglamorous: centralised idempotency so retries are safe,
+globally unique references so every leg is traceable, compensating entries so mistakes are
+reversible, and end-of-day reconciliation to catch what all of that still missed. Those four are the
+real architecture. The service boundaries are just where you drew the lines.

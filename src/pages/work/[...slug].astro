@@ -5,6 +5,7 @@ import PipelineDiagram from '../../components/diagrams/PipelineDiagram.astro';
 import LedgerDiagram from '../../components/diagrams/LedgerDiagram.astro';
 import GatewayDiagram from '../../components/diagrams/GatewayDiagram.astro';
 import ErpDiagram from '../../components/diagrams/ErpDiagram.astro';
+import MicroservicesDiagram from '../../components/diagrams/MicroservicesDiagram.astro';
 
 export async function getStaticPaths() {
   const studies = await getCollection('case-studies', ({ data }) => !data.draft);
@@ -24,6 +25,7 @@ const diagrams = {
   ledger: LedgerDiagram,
   gateway: GatewayDiagram,
   erp: ErpDiagram,
+  microservices: MicroservicesDiagram,
 } as const;
 const Diagram = diagrams[d.diagram];
 ---

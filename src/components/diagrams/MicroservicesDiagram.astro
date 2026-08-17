@@ -1,0 +1,157 @@
+---
+import DiagramFrame from './DiagramFrame.astro';
+const A = '#38bdf8';
+
+const edge = ['Aggregator gateway', 'Client gateways', 'Two-factor auth', 'Device binding', 'Discovery'];
+const capability = [
+  'Send money',
+  'Cash-out',
+  'Payment',
+  'External fund transfer',
+  'Top-up',
+  'Merchant',
+  'E-wallet',
+  'Bill payment',
+  'QR',
+  'USSD',
+  'Loyalty & cashback',
+  'KYC',
+];
+const platform = [
+  'Deduplication',
+  'Unique-ID generator',
+  'Notification',
+  'Scheduler',
+  'File',
+  'Metadata',
+  'Kafka transport',
+  'Transaction analytics',
+];
+---
+
+<DiagramFrame
+  label="wallet platform / service estate"
+  caption="Split by transaction capability rather than by layer — so the highest-fraud path (cash-out) can be hardened and throttled without touching the highest-volume one (send money)."
+>
+  <svg viewBox="0 0 940 470" class="h-auto w-full" role="img" aria-label="Wallet and payment platform service estate">
+    <defs>
+      <marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill={A} />
+      </marker>
+      <linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color={A} stop-opacity="0.16" />
+        <stop offset="100%" stop-color={A} stop-opacity="0.04" />
+      </linearGradient>
+    </defs>
+
+    {/* ---- clients ---- */}
+    <text x="24" y="24" class="fill-[#647082] font-mono text-[9px] tracking-[0.2em]">CLIENTS</text>
+    {['Customer app', 'Agent app', 'Merchant', 'Admin portal'].map((c, i) => (
+      <g>
+        <rect x={24 + i * 152} y="34" width="136" height="30" rx="7" fill="#171c26" stroke="#2f3746" />
+        <text x={92 + i * 152} y="53" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">{c}</text>
+        <line x1={92 + i * 152} y1="64" x2={92 + i * 152} y2="82" stroke={A} stroke-opacity="0.4" stroke-width="1.2" class="flow-line" />
+      </g>
+    ))}
+
+    {/* ---- edge band ---- */}
+    <g>
+      <rect x="24" y="82" width="892" height="58" rx="9" fill="url(#mg)" stroke={A} stroke-opacity="0.5" />
+      <text x="38" y="100" class="fill-[#38bdf8] font-mono text-[9px] tracking-[0.18em]">EDGE</text>
+      {edge.map((e, i) => (
+        <g>
+          <rect x={38 + i * 174} y="106" width="162" height="24" rx="5" fill="#0b0e14" stroke="#2f3746" />
+          <text x={119 + i * 174} y="122" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[9px]">{e}</text>
+        </g>
+      ))}
+    </g>
+
+    <line x1="470" y1="140" x2="470" y2="162" stroke={A} stroke-opacity="0.5" stroke-width="1.4" marker-end="url(#ma)" class="flow-line" />
+
+    {/* ---- capability band ---- */}
+    <g>
+      <rect x="24" y="162" width="892" height="132" rx="9" fill="#11151d" stroke={A} stroke-opacity="0.4" />
+      <text x="38" y="180" class="fill-[#38bdf8] font-mono text-[9px] tracking-[0.18em]">TRANSACTION CAPABILITIES · one kind of money movement each</text>
+      {capability.map((c, i) => {
+        const col = i % 6;
+        const row = Math.floor(i / 6);
+        const hot = c === 'Cash-out';
+        return (
+          <g>
+            <rect
+              x={38 + col * 146}
+              y={190 + row * 44}
+              width="134"
+              height="34"
+              rx="6"
+              fill="#171c26"
+              stroke={hot ? '#fbbf24' : '#2f3746'}
+              stroke-opacity={hot ? '0.8' : '1'}
+            />
+            <text
+              x={105 + col * 146}
+              y={211 + row * 44}
+              text-anchor="middle"
+              class="font-mono text-[9px]"
+              fill={hot ? '#fbbf24' : '#e8eef7'}
+            >
+              {c}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+
+    <line x1="470" y1="294" x2="470" y2="316" stroke={A} stroke-opacity="0.5" stroke-width="1.4" marker-end="url(#ma)" class="flow-line" />
+
+    {/* ---- platform band ---- */}
+    <g>
+      <rect x="24" y="316" width="892" height="76" rx="9" fill="#11151d" stroke="#2f3746" />
+      <text x="38" y="334" class="fill-[#647082] font-mono text-[9px] tracking-[0.18em]">PLATFORM SERVICES</text>
+      {platform.map((p, i) => {
+        const col = i % 4;
+        const row = Math.floor(i / 4);
+        const key = p === 'Deduplication' || p === 'Unique-ID generator';
+        return (
+          <g>
+            <rect
+              x={38 + col * 220}
+              y={342 + row * 26}
+              width="208"
+              height="22"
+              rx="5"
+              fill="#0b0e14"
+              stroke={key ? A : '#2f3746'}
+              stroke-opacity={key ? '0.7' : '1'}
+            />
+            <text
+              x={142 + col * 220}
+              y={357 + row * 26}
+              text-anchor="middle"
+              class="font-mono text-[9px]"
+              fill={key ? A : '#9aa7b8'}
+            >
+              {p}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+
+    <line x1="300" y1="392" x2="300" y2="414" stroke={A} stroke-opacity="0.5" stroke-width="1.4" marker-end="url(#ma)" class="flow-line" />
+    <line x1="700" y1="392" x2="700" y2="414" stroke="#fbbf24" stroke-opacity="0.5" stroke-width="1.4" marker-end="url(#ma)" class="flow-line" />
+
+    {/* ---- core banking + card rails ---- */}
+    <g>
+      <rect x="24" y="414" width="560" height="44" rx="9" fill="#171c26" stroke="#4ade80" stroke-opacity="0.55" />
+      <text x="304" y="433" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">CORE BANKING — Apache Fineract</text>
+      <text x="304" y="449" text-anchor="middle" class="fill-[#4ade80] font-mono text-[8px]">general ledger · journal entries · end-of-day</text>
+    </g>
+
+    <g>
+      <rect x="600" y="414" width="316" height="44" rx="9" fill="#171c26" stroke="#fbbf24" stroke-opacity="0.55" />
+      <text x="758" y="433" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">ISO 8583 middleware</text>
+      <text x="758" y="449" text-anchor="middle" class="fill-[#fbbf24] font-mono text-[8px]">card rails, quarantined in one adapter</text>
+    </g>
+  </svg>
+</DiagramFrame>

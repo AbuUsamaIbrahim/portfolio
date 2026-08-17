@@ -4,10 +4,10 @@ const A = '#22d3ee';
 ---
 
 <DiagramFrame
-  label="bcms / invoice pipeline"
+  label="invoice pipeline"
   caption="Each stage is an independent deployable. Kafka topics between them mean the slow stage (PDF rendering) never stalls the fast one — it just consumes at its own rate."
 >
-  <svg viewBox="0 0 940 330" class="h-auto w-full" role="img" aria-label="BCMS invoice pipeline architecture">
+  <svg viewBox="0 0 940 330" class="h-auto w-full" role="img" aria-label="Invoice generation pipeline architecture">
     <defs>
       <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
         <path d="M 0 0 L 10 5 L 0 10 z" fill={A} />
