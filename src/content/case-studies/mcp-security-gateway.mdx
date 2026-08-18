@@ -10,7 +10,7 @@ repo: "https://github.com/AbuUsamaIbrahim/toolgate"
 facts:
   - { label: "Protocol", value: "MCP 2026-07-28" }
   - { label: "Runtime", value: "Java 21 · Spring WebFlux" }
-  - { label: "Tests", value: "79, adversarial" }
+  - { label: "Tests", value: "106, adversarial" }
   - { label: "Code", value: "Public · runnable" }
 stack: ["Java 21", "Spring Boot", "Spring WebFlux", "Project Reactor", "Model Context Protocol", "SHA-256", "JSON-RPC 2.0"]
 decisions:
@@ -32,6 +32,12 @@ decisions:
   - choice: "Confine x-mcp-header to the namespace the specification reserves for it"
     rejected: "A block list of sensitive headers"
     because: "This is the one field in a tool definition that instructs the transport rather than the model, so a hostile server can reach past the message body and write an HTTP header. A definition naming Authorization takes over the credential the gateway authenticates with. A block list is a race between the list and the next header someone finds a use for; requiring the reserved prefix makes every interesting header unreachable by construction."
+  - choice: "Distribute policy as a signed artifact, not a service"
+    rejected: "A control plane the gateway calls for every decision"
+    because: "A security tool that requires new infrastructure before it does anything useful does not get deployed, and a policy service on the hot path means every developer's agent stops when it does. A signed bundle published to an object store gives a security team central control over two hundred machines with no server to run, and the gateway keeps enforcing when the publisher is unreachable. The control plane can come later, once approvals and fleet visibility actually need one."
+  - choice: "When a bundle is in force, ignore local configuration rather than merging"
+    rejected: "Merging central policy with the machine's own settings"
+    because: "Merging means a developer widens their own allowlist by editing a file on their own laptop. That is central policy in appearance only, which is worse than none because it is believed. Local configuration keeps connectivity — how to reach a server — and never permission. A server the laptop can reach but the bundle has never heard of is allowed nothing."
   - choice: "Persist pending approvals, but never granted ones"
     rejected: "Making all state durable, for consistency"
     because: "A pending request is a decision a human still owes, and losing the queue mid-review during a deploy is a real cost. A grant is the opposite: permission for one call, in one moment, in a context a person had in their head at the time. Writing it to disk turns a momentary yes into a standing permission that outlives the situation justifying it — the exact failure the single-use rule exists to prevent. A restart revoking every grant is the behaviour, not a gap in it."
@@ -148,20 +154,63 @@ blocked waiting for a human to approve it. **Remediation should not need permiss
 definition is now forgotten, and the ordering of two checks turned out to have a consequence three
 steps away.
 
+## Scaling it to a company
+
+One developer running this needs none of what follows. Two hundred developers pointing
+agents at MCP servers is a different problem, and the difference is not volume — it is that
+three new adversaries appear. The **developer** themselves, not malicious but busy, who will
+accept a drift alert to unblock a demo. **Bypass**, because anyone can delete a line of client
+config. And **fan-out**, where one poisoned upstream reaches every agent at once while two
+hundred independent trust stores mean the first person to hit it protects nobody else.
+
+So the work stops being enforcement and becomes distribution, attribution and curation.
+
+The first increment is a **signed policy bundle**: one Ed25519-signed artifact carrying the
+allowlist, the approval rules and the tool fingerprints a named reviewer has actually read.
+It is published to an object store. There is no server, which is the point — a security tool
+that demands new infrastructure before it does anything useful does not get deployed.
+
+It also fixes trust-on-first-use, which is the weakest part of the original design. Rather
+than every laptop trusting whatever definition it happened to see first, one person reviews
+a definition once and that judgement outranks every local pin in the fleet.
+
+### The distribution layer is where the thinking goes
+
+Signing is the easy half. The states a real fleet lives in are the hard half, and each rule
+below exists because the obvious behaviour is wrong:
+
+- **Publisher unreachable → keep enforcing.** Unloading policy would turn an outage at the
+  distribution point into a fleet-wide disarm, which is a better attack than anything
+  aimed at the gateway itself.
+- **An older, validly signed bundle is served → refuse it.** A signature proves
+  authenticity, not freshness. Without a monotonic sequence floor, replaying yesterday's
+  bundle restores the tool that was removed today.
+- **That floor is read from the local cache before the network.** Rollback protection a
+  restart clears is not protection; it is a reason to restart the gateway.
+- **Past expiry there is a grace window, then everything is denied.** Offline for a week is
+  a plane. Offline for a quarter should not still be enforcing last quarter's rules.
+
+Two bugs came out of writing the tests rather than the code. Review precedence was
+half-implemented — a stale local pin could still veto a centrally approved tool. And the
+rollback floor did not survive a restart, which is the failure above, discovered by asking
+what an attacker would do during a deploy.
+
 ## What it does not do
 
-Stated here for the same reason it is stated in the README: a security tool that oversells itself is
-worse than none.
+Stated here for the same reason it is stated in the README: a security tool that oversells
+itself is worse than none.
 
-- **Trust on first use** assumes the first sighting is clean. A server compromised before it is ever
-  pinned becomes the trusted baseline.
-- **Pattern matching loses alone.** The scanner catches the unsophisticated majority and nothing more.
-- **The audit trail is a local file.** It is append-only from the gateway's side, but anything with
-  write access to the disk can edit it. A record you cannot rewrite has to live somewhere you do not
-  control.
-- **Credentials are static hashes in configuration.** That suits a self-hosted gateway; a real
-  deployment wants token expiry and an authorization server, which is why token validation is an
-  interface rather than a function.
+- **Trust on first use** assumes the first sighting is clean, unless a reviewed fingerprint
+  replaces it. Central review is what closes this, and only for tools someone has read.
+- **Pattern matching loses alone.** The scanner catches the unsophisticated majority and
+  nothing more.
+- **Callers are static token hashes.** Fine for one gateway, unworkable for a fleet: you
+  cannot edit a file per person, and an audit line naming `example-agent` names nobody.
+  OIDC against a company IdP is the next increment.
+- **Nothing detects a developer who bypasses the gateway entirely.** Coverage needs managed
+  client configuration or a control plane that knows which machines have checked in.
+- **The audit trail is a local file.** Append-only from the gateway's side, editable by
+  anyone with write access to the disk.
 
 ## Why I built this one
 
