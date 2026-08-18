@@ -11,6 +11,7 @@ facts:
   - { label: "Core banking", value: "Apache Fineract" }
   - { label: "Card rails", value: "ISO 8583 middleware" }
   - { label: "My scope", value: "Ledger, CBS, release line" }
+  - { label: "Deployment", value: "White-label, per client" }
 stack: ["Java", "Spring Boot", "Apache Fineract", "Apache Kafka", "PostgreSQL", "Kubernetes", "ISO 8583", "REST"]
 decisions:
   - choice: "Decompose by transaction capability, not by layer"
@@ -42,6 +43,13 @@ That is not one product. It is a dozen products sharing a balance, and the archi
 that — roughly thirty-two services in the core group alone, with more across bill payment, cards,
 USSD, school payments and the admin portals.
 
+It is also not one deployment. The platform is white-label: the same estate ships under a different
+brand for each institution that licenses it, including as a commercial bank's own consumer wallet.
+That constrains the architecture more than it first appears. Anything client-specific — branding,
+fee schedules, the set of enabled capabilities, the gateway a partner integrates against — has to be
+configuration or a per-client edge service, never a fork. A fork per client is a codebase that
+diverges silently until a fix has to be applied five times and lands correctly in three of them.
+
 ## Shape of the system
 
 <Diagram />
@@ -49,7 +57,9 @@ USSD, school payments and the admin portals.
 The estate divides cleanly into three bands, and the discipline is in not letting them blur:
 
 - **Edge** — an aggregator gateway and per-client gateways, two-factor auth, device binding, and a
-  discovery service so nothing hardcodes a peer's address.
+  discovery service so nothing hardcodes a peer's address. The per-client gateways are where
+  white-labelling lands: partner-specific contracts stay at the edge instead of leaking into the
+  services that move money.
 - **Transaction capabilities** — send money, cash-out, payment, external fund transfer, top-up,
   merchant, ewallet. Each owns one kind of money movement.
 - **Platform services** — deduplication, unique-ID generation, notification, scheduler, file,
