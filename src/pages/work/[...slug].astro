@@ -85,6 +85,17 @@ const Diagram = diagrams[d.diagram];
       }
     </dl>
 
+    {/* ---- diagram, hoisted ----
+         Above the prose on purpose. Most visitors arrive from a shared link rather than a
+         search, and decide within a screen whether this is a real system or a description
+         of one. A diagram answers that faster than three paragraphs can. The commentary
+         further down still refers to it. */}
+    {Diagram && (
+      <div class="mt-10">
+        <Diagram />
+      </div>
+    )}
+
     {/* ---- body ---- */}
     <div class="prose-tech mt-12">
       <Content components={{ Diagram }} />

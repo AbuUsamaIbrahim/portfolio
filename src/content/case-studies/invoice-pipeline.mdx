@@ -45,9 +45,7 @@ per customer, and deliver it. Roughly two million times, reliably, every cycle.
 
 ## Shape of the system
 
-Five stages, each its own deployable, connected by Kafka topics rather than calls:
-
-<Diagram />
+Five stages, each its own deployable, connected by Kafka topics rather than calls.
 
 The parser uses **Spring Batch** because a billing run is genuinely a batch job — it has chunks,
 restartability and a natural failure boundary, and pretending otherwise means rebuilding those
