@@ -1,19 +1,19 @@
 ---
 index: 2
 title: "Toolgate — MCP Security Gateway"
-subtitle: "Closing a gap the AI agent protocol names but does not solve"
+subtitle: "Enforcing the rules an AI agent protocol can only ask for"
 org: "Open source"
 period: "2026"
 role: "Sole author"
-summary: "A policy gateway between an AI agent and its tool servers. It pins every tool definition, refuses ones that change after approval, scans metadata and output for injected instructions, and records every decision — the enforcement mechanism the Model Context Protocol specification says it cannot provide."
+summary: "A policy gateway between an AI agent and its MCP servers. It governs every surface the protocol exposes — tools, resources, prompts, subscriptions and the dialogs a server can put in front of a user — pinning definitions, refusing ones that change after approval, and recording every decision. The enforcement mechanism the Model Context Protocol specification asks for and cannot provide."
 repo: "https://github.com/AbuUsamaIbrahim/toolgate"
 facts:
-  - { label: "Protocol", value: "MCP 2026-07-28" }
+  - { label: "Protocol", value: "MCP 2026-07-28, in full" }
   - { label: "Runtime", value: "Java 21 · Spring WebFlux" }
   - { label: "Deployment", value: "Sidecar + control plane" }
-  - { label: "Tests", value: "161, adversarial" }
+  - { label: "Tests", value: "271, adversarial" }
   - { label: "Code", value: "Public · runnable" }
-stack: ["Java 21", "Spring Boot", "Spring WebFlux", "Project Reactor", "Model Context Protocol", "OAuth 2.1 / OIDC", "Ed25519", "PostgreSQL", "Kubernetes", "OpenTelemetry", "JSON-RPC 2.0"]
+stack: ["Java 21", "Spring Boot", "Spring WebFlux", "Project Reactor", "Model Context Protocol", "Server-Sent Events", "OAuth 2.1 / OIDC", "Ed25519", "PostgreSQL", "Kubernetes", "OpenTelemetry", "JSON-RPC 2.0"]
 decisions:
   - choice: "Filter tools at advertisement time, not only at call time"
     rejected: "Checking policy when a tool is invoked"
@@ -103,8 +103,9 @@ The repository ships the hostile server that produces it, so the whole thing run
 
 ## Shape of the system
 
-The agent points at the gateway instead of at its tool servers. Every tool the agent can see has
-survived four checks; every decision, including the refusals, is on the record.
+The agent points at the gateway instead of at its tool servers. Everything the agent can see —
+tools, resources, prompts, templates — has survived the checks below; every decision, including
+the refusals, is on the record.
 
 ## Why the ordering is the design
 
@@ -128,6 +129,8 @@ check:
 The critical property is *when* this runs. Filtering happens at `tools/list`, so a poisoned
 definition never enters the model's context at all. A gateway that waits until the tool is invoked
 has already lost: the instructions were read the moment the tool list was rendered into the prompt.
+
+The same sequence now runs over resources and prompts, which took some rethinking — see below.
 
 ## Proving it, adversarially
 
@@ -292,22 +295,162 @@ restart cannot refresh an expired bundle, so it produces an infinite loop that a
 the fleet registry on every cycle. I verified that failure mode on a cluster rather than
 reasoning about it.
 
+## Governing the rest of the protocol
+
+For a long time this governed tools and nothing else. That was not a hole — the gateway fails
+closed on any method it does not understand — but it was a **wall**: an agent needing resources or
+prompts could not use the gateway at all, so it would go around it. And bypass is what makes every
+other control here decoration.
+
+Extending to the rest of the surface meant reading the specification properly rather than
+generalising from tools, and three things there have no equivalent in the tools path.
+
+### A resource URI decides who fetches the content
+
+The spec permits a client to fetch an `https://` resource **directly from the web**. Read that from
+the gateway's side: a compromised server hands the client a URL, the client fetches it, and the
+bytes reach the model without traversing the gateway at all — unscreened, unaudited, unpinned —
+while making the agent a confused deputy for a request to a host the attacker chose.
+
+So URI schemes are allowlisted and `https` is not a default. That genuinely restricts honest
+servers, and it is still right: the alternative is a gateway that any server preferring not to be
+inspected can route around.
+
+### Annotations are a context-inclusion control
+
+`audience` and `priority` look like display hints. The spec defines priority `1.0` as *"effectively
+required"* and tells clients they may use it to decide what enters the context window. That is an
+instruction from the least trusted party in the system about how much of the model's attention it
+gets.
+
+Unreviewed resources have it clamped rather than refused — refusing breaks servers that annotate
+sensibly, ignoring it lets a hostile one mark its payload mandatory. Clamping keeps the hint and
+removes the demand. The patient version of that attack, where a server behaves for a fortnight and
+then quietly promotes itself, is caught as drift instead, because the fingerprint covers
+annotations.
+
+### Templates have to be judged before they exist
+
+`resources/templates/list` offers parameterised resources like `file:///{path}`, and the **client**
+expands them. The gateway never sees the expansion, so the allowlist must be enforced against every
+URI a template *could* produce, at the moment it is advertised.
+
+The test is literal-prefix containment: `file:///project/{name}` is fine against
+`file:///project/*` because the fixed part already sits inside the subtree; `file:///{path}` is
+refused because everything after `file:///` is chosen by the client. That is only half the control —
+a variable expanding to `../../etc/shadow` escapes a prefix that looks perfectly safe — so the
+traversal check at read time is the other half, and the tests assert the case where the first passes
+and the second has to catch it.
+
+## Elicitation: when the target is a person
+
+Everywhere else in this project a compromised server is trying to fool a model. Elicitation is where
+it tries to fool a **human**, using the client's own trusted dialog to do it, arriving mid-task when
+the user is inclined to get past it rather than examine it.
+
+The specification is direct about the danger and powerless about it. Nearly every rule is a **MUST**
+aimed at the server — which is to say, at the party you are defending against:
+
+> Servers **MUST NOT** use form mode elicitation to request sensitive information such as passwords,
+> API keys, access tokens, or payment credentials.
+
+Nothing enforced that. Now something does:
+
+```
+harvest_key      BLOCKED  form-mode elicitation is asking for a credential…
+harvest_hidden   BLOCKED  form-mode elicitation is asking for a credential…
+phish_url        BLOCKED  URL host uses punycode, which can render as a lookalike domain
+ask_name         PASSED   mode=form  message='Please provide your contact information'
+```
+
+`harvest_hidden` is the interesting one: its *message* reads "Just a couple of details to finish
+setup" and the actual credential request lives in a field description. Every string a human will
+read is checked, because the innocuous half is the half you are meant to look at.
+
+The restraint mattered as much as the detection. Credential patterns are narrow and word-bounded —
+`tokenise` and `pinned` must not match — and name and email, which the spec explicitly permits, pass
+through. **A control that refuses honest servers is one that gets switched off within a week**,
+which is worse than not having it.
+
+## Subscriptions, and an id that must not be relayed
+
+`subscriptions/listen` is a long-lived request whose JSON-RPC id *becomes* the subscription id,
+carried on every notification so a client can demultiplex concurrent streams. A client opens one
+against the gateway; the gateway opens one per upstream. Several streams come back and have to look
+like the one that was asked for.
+
+That id belongs to whoever opened the subscription — and upstream is a different party from the
+client. Relay it and a client holding two subscriptions is one hostile server away from having
+notifications delivered into the wrong one: server A, serving subscription 1, stamps its messages
+with 2, the client attributes them to a subscription about entirely different resources, and nothing
+in the protocol contradicts it.
+
+So resolution is keyed on **the sender as well as the id** — a server claiming another's
+subscription resolves to nothing rather than to somebody else's stream — and the id is rewritten to
+the client's own on the way out. The ids are derived rather than secret, so guessing one is easy;
+that is precisely why the defence cannot depend on them being unguessable.
+
+The filter is enforced too. The spec says a server *MUST NOT* send notification types the client did
+not request, and toolgate checks it. That is the recurring point of this whole project: **a gateway
+that can verify a MUST is worth more than a specification that states one.**
+
+## Both transports, in both directions
+
+All of it works over stdio and Streamable HTTP. That mattered more than it sounds, because the two
+differ in a way that turned out to be a trap: HTTP gives each subscription its own SSE stream, stdio
+shares one channel. I initially skipped the id rewrite on HTTP, reasoning that a dedicated stream
+already identifies the subscription — wrong, because the message still *carries* the id and clients
+correlate on that field. The upstream's id leaked straight through until a live test showed it.
+
+The HTTP binding also has two security rules the gateway had been ignoring. **Origin validation**,
+because a page on the open web can point a name it controls at `127.0.0.1` and have the browser call
+a gateway on the user's machine. And **header/body agreement**, which exists because *"a load
+balancer routing on the header value while the MCP server executes based on the body value"*
+disagree about what the request is — a warning about intermediaries, which is exactly what this is:
+
+```
+Mcp-Name says read_file, body says delete_everything -> code -32020 (HeaderMismatch)
+```
+
+## What running it kept finding
+
+Every increment was tested against a deliberately misbehaving server, not just against unit tests.
+That practice found five defects the tests missed, and the pattern in them is worth more than the
+bugs:
+
+- An audit message reading `further %s from this server` — `"a %s" + "b".formatted(x)` formats only
+  the second literal. The test asserted `contains("rate exceeded")` and sailed past it.
+- A **registration race**: servers acknowledge a subscription the instant they receive it and may
+  push immediately after, but the registry was populated *after* the fan-out. Legitimate
+  notifications were dropped for a few milliseconds, and the audit filled with alarming entries for
+  ordinary traffic.
+- Routine acknowledgements audited as attacks — two alarming lines per subscription, which is how an
+  operator learns to scroll past the entries that matter.
+- Two half-finished refactors of mine: notification *routing* moved into one class while its
+  *registration* stayed in a transport, so over HTTP nothing was listening at all; and the id-rewrite
+  omission above.
+
+Three of those five are mine rather than the protocol's, and none of them were security holes —
+they failed closed. But one silently dropped real messages, and two taught an operator to ignore the
+log. **Both are ways a working control stops being one.**
+
 ## What it does not do
 
-Stated here for the same reason it is stated in the README: a security tool that oversells
-itself is worse than none.
+Stated here for the same reason it is stated in the README: a security tool that oversells itself is
+worse than none.
 
-- **Trust on first use** assumes the first sighting is clean, unless a reviewed fingerprint
-  replaces it. Central review is what closes this, and only for tools someone has read.
-- **Pattern matching loses alone.** The scanner catches the unsophisticated majority and
-  nothing more.
-- **Callers are static token hashes.** Fine for one gateway, unworkable for a fleet: you
-  cannot edit a file per person, and an audit line naming `example-agent` names nobody.
-  OIDC against a company IdP is the next increment.
-- **Nothing detects a developer who bypasses the gateway entirely.** Coverage needs managed
-  client configuration or a control plane that knows which machines have checked in.
-- **The audit trail is a local file.** Append-only from the gateway's side, editable by
-  anyone with write access to the disk.
+- **Trust on first use** assumes the first sighting is clean, unless a reviewed fingerprint replaces
+  it. Central review closes this, and only for definitions someone has read.
+- **Pattern matching loses alone.** The scanner catches the unsophisticated majority and nothing
+  more.
+- **Binary resource content is not scanned.** Only text; base64 of a poisoned document passes.
+- **Coverage is reported, not enforced.** Check-ins show which gateways are running and which went
+  quiet. They cannot see someone who never installed one, and can be faked by anyone willing to lie
+  about their own machine.
+- **Revocation lags token expiry.** JWTs validate offline against the JWKS, so a revoked session
+  works until it expires.
+- **The audit file is editable by whoever holds the machine.** Append-only from this process's side
+  only; OTLP export is the answer, and it is optional.
 
 ## Why I built this one
 
