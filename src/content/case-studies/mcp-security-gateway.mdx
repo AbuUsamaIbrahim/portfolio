@@ -10,9 +10,10 @@ repo: "https://github.com/AbuUsamaIbrahim/toolgate"
 facts:
   - { label: "Protocol", value: "MCP 2026-07-28" }
   - { label: "Runtime", value: "Java 21 · Spring WebFlux" }
-  - { label: "Tests", value: "106, adversarial" }
+  - { label: "Deployment", value: "Sidecar + control plane" }
+  - { label: "Tests", value: "161, adversarial" }
   - { label: "Code", value: "Public · runnable" }
-stack: ["Java 21", "Spring Boot", "Spring WebFlux", "Project Reactor", "Model Context Protocol", "SHA-256", "JSON-RPC 2.0"]
+stack: ["Java 21", "Spring Boot", "Spring WebFlux", "Project Reactor", "Model Context Protocol", "OAuth 2.1 / OIDC", "Ed25519", "PostgreSQL", "Kubernetes", "OpenTelemetry", "JSON-RPC 2.0"]
 decisions:
   - choice: "Filter tools at advertisement time, not only at call time"
     rejected: "Checking policy when a tool is invoked"
@@ -159,41 +160,107 @@ steps away.
 One developer running this needs none of what follows. Two hundred developers pointing
 agents at MCP servers is a different problem, and the difference is not volume — it is that
 three new adversaries appear. The **developer** themselves, not malicious but busy, who will
-accept a drift alert to unblock a demo. **Bypass**, because anyone can delete a line of client
-config. And **fan-out**, where one poisoned upstream reaches every agent at once while two
-hundred independent trust stores mean the first person to hit it protects nobody else.
+accept a drift alert to unblock a demo. **Bypass**, because anyone can delete a line of
+client config. And **fan-out**, where one poisoned upstream reaches every agent at once
+while two hundred independent trust stores mean the first person to hit it protects nobody
+else.
 
 So the work stops being enforcement and becomes distribution, attribution and curation.
 
-The first increment is a **signed policy bundle**: one Ed25519-signed artifact carrying the
-allowlist, the approval rules and the tool fingerprints a named reviewer has actually read.
-It is published to an object store. There is no server, which is the point — a security tool
-that demands new infrastructure before it does anything useful does not get deployed.
+The constraint I held throughout: **each increment had to be adoptable without new
+infrastructure**, until one genuinely earned it. A security tool that demands a service be
+stood up before it does anything useful does not get deployed.
 
-It also fixes trust-on-first-use, which is the weakest part of the original design. Rather
-than every laptop trusting whatever definition it happened to see first, one person reviews
-a definition once and that judgement outranks every local pin in the fleet.
+### Signed policy bundles, with no server
 
-### The distribution layer is where the thinking goes
+One Ed25519-signed artifact carrying the allowlist, the approval rules and the tool
+fingerprints a named reviewer has read. Published to an object store.
 
-Signing is the easy half. The states a real fleet lives in are the hard half, and each rule
-below exists because the obvious behaviour is wrong:
+When a bundle is in force it is **authoritative, and local configuration is not merged with
+it** — local YAML keeps *connectivity*, never *permission*. Merging would let a developer
+widen their own allowlist by editing a file on their own laptop, which is central policy in
+appearance only, and that is worse than none because it is believed.
 
-- **Publisher unreachable → keep enforcing.** Unloading policy would turn an outage at the
-  distribution point into a fleet-wide disarm, which is a better attack than anything
-  aimed at the gateway itself.
-- **An older, validly signed bundle is served → refuse it.** A signature proves
-  authenticity, not freshness. Without a monotonic sequence floor, replaying yesterday's
-  bundle restores the tool that was removed today.
-- **That floor is read from the local cache before the network.** Rollback protection a
-  restart clears is not protection; it is a reason to restart the gateway.
-- **Past expiry there is a grace window, then everything is denied.** Offline for a week is
-  a plane. Offline for a quarter should not still be enforcing last quarter's rules.
+It also repairs the weakest part of the original design. Instead of every laptop trusting
+whatever definition it happened to see first, one person reviews a definition and that
+judgement outranks every local pin in the fleet.
 
-Two bugs came out of writing the tests rather than the code. Review precedence was
-half-implemented — a stale local pin could still veto a centrally approved tool. And the
-rollback floor did not survive a restart, which is the failure above, discovered by asking
-what an attacker would do during a deploy.
+Signing covers the exact payload bytes, carried verbatim in the envelope, because signing a
+reserialised document means growing a canonicalisation spec — and canonicalisation bugs are
+a rich source of signature bypasses.
+
+### Identity, and policy that differs by team
+
+A SHA-256 hash in a config file identifies a *deployment*. It cannot be revoked without
+editing every machine, never expires, and produces audit lines reading `example-agent` —
+which answers "which config entry was used" when the question after an incident is "who did
+this".
+
+Callers now present OIDC tokens, and four failure modes are closed deliberately, each
+because it has shipped somewhere real: the token's own `alg` is never trusted (`alg:none`,
+and the RS256-public-key-as-HMAC-secret confusion); keys come only from the configured JWKS,
+so a `jku` header introduces nothing; the audience is checked, which is the confused-deputy
+control stopping a token minted for the wiki opening the gateway; and clock skew stays at
+sixty seconds, because expiry is the only revocation a stateless token has.
+
+Identity that does not change what is permitted is just better logging, so bundles gained
+team policies keyed by the IdP's group claim. They are **additive only** — letting a team
+override *remove* access asks which entry wins for someone in two teams, and both answers
+are bad. Most-permissive means the restriction was never real; most-restrictive means
+joining a team silently takes away access you had yesterday.
+
+### Approvals with a real second person
+
+The human gate had three holes. Approvals were recorded as "granted by operator" — a shared
+token, not a person. Nothing stopped the requester approving their own call. And approving
+meant curling an API, so in practice it would be waved through by whoever was blocked.
+
+Now a blocked call posts to Slack with buttons, the grant names whoever clicked, and
+self-approval is refused **in the store, not the interface** — the interface is not what an
+attacker uses. Slack user IDs map to identities through explicit configuration rather than
+the Slack profile, because profile email is user-editable in many workspaces: deriving the
+approver from it would let someone name themselves as the person whose request they wanted
+to approve.
+
+The signature check carries the weight. That endpoint must be internet-reachable for buttons
+to work and it approves tool calls, so without it the endpoint is an unauthenticated
+approve-anything API. It verifies HMAC over the raw bytes the form field is later read from,
+rejects timestamps outside five minutes in either direction, and compares in constant time.
+
+### Coverage, and the honest limit of it
+
+The control plane serves policy and records who checked in — who, which machine, which
+build, which policy sequence, whether that policy is healthy. **Not** what tools were
+called: the audit trail already answers that, and a coverage mechanism that becomes a
+developer-activity feed is a different product, one people are right to resent.
+
+It is worth being precise about what this proves. Identity comes from the OIDC token, so one
+developer cannot manufacture coverage for another. But it only lists gateways that
+*reported*. It cannot see someone who never installed one, and a determined person can fake
+their own check-ins. It raises the cost of bypass; it does not close it.
+
+The signing key is deliberately **not** on the control plane. It serves bytes it cannot
+forge, so a compromise can withhold or stale policy — already bounded by the sequence floor
+and staleness deadline — but not write it.
+
+### The state that decided the deployment topology
+
+The fleet registry started in memory, which is correct, fast, and forces a single replica.
+Rather than assume that, I ran two replicas on a cluster and watched what happened: three
+gateways checked in, one pod knew one of them and the other pod knew the other two, and a
+client asking the Service got 1 or 2 at random. Never 3.
+
+That is not a display bug. It is a coverage report claiming machines are unmonitored when
+they are not — which people act on once, and then stop believing. Moving state to Postgres
+made the report consistent and the deployment horizontally scalable.
+
+The Kubernetes manifests are hand-written and carry their reasoning, because the interesting
+choices are not obvious from the YAML. The liveness probe deliberately does **not** point at
+the aggregate health endpoint: that endpoint reports DOWN when policy goes stale, which is a
+state you want to *see*, not one you want the kubelet to answer by killing the process — a
+restart cannot refresh an expired bundle, so it produces an infinite loop that also destroys
+the fleet registry on every cycle. I verified that failure mode on a cluster rather than
+reasoning about it.
 
 ## What it does not do
 
