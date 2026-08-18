@@ -23,7 +23,9 @@ const caseStudies = defineCollection({
     /** Architecture decisions with the alternative that was rejected. */
     decisions: z.array(decision),
     /** Which diagram component to render for this study. */
-    diagram: z.enum(['pipeline', 'ledger', 'gateway', 'erp', 'microservices']),
+    diagram: z.enum(['pipeline', 'ledger', 'gateway', 'erp', 'microservices', 'agentgate']),
+    /** Public repository, when the work is not under NDA. */
+    repo: z.string().optional(),
     accent: z.string().default('#22d3ee'),
     draft: z.boolean().default(false),
   }),

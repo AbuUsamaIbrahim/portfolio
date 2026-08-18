@@ -6,6 +6,7 @@ import LedgerDiagram from '../../components/diagrams/LedgerDiagram.astro';
 import GatewayDiagram from '../../components/diagrams/GatewayDiagram.astro';
 import ErpDiagram from '../../components/diagrams/ErpDiagram.astro';
 import MicroservicesDiagram from '../../components/diagrams/MicroservicesDiagram.astro';
+import AgentGateDiagram from '../../components/diagrams/AgentGateDiagram.astro';
 
 export async function getStaticPaths() {
   const studies = await getCollection('case-studies', ({ data }) => !data.draft);
@@ -26,6 +27,7 @@ const diagrams = {
   gateway: GatewayDiagram,
   erp: ErpDiagram,
   microservices: MicroservicesDiagram,
+  agentgate: AgentGateDiagram,
 } as const;
 const Diagram = diagrams[d.diagram];
 ---
@@ -49,9 +51,20 @@ const Diagram = diagrams[d.diagram];
     </h1>
     <p class="mt-4 text-lg text-[var(--color-ink-dim)]">{d.subtitle}</p>
 
-    <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] text-[var(--color-ink-faint)]">
+    <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-[11px] text-[var(--color-ink-faint)]">
       <span>{d.period}</span>
       <span>{d.role}</span>
+      {
+        d.repo && (
+          <a
+            href={d.repo}
+            class="inline-flex items-center gap-1.5 rounded border px-2 py-1 transition-colors"
+            style={`border-color:${d.accent}55;color:${d.accent}`}
+          >
+            source on GitHub ↗
+          </a>
+        )
+      }
     </div>
 
     {/* ---- fact strip ---- */}

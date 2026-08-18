@@ -1,0 +1,97 @@
+---
+import DiagramFrame from './DiagramFrame.astro';
+const A = '#f472b6';
+const OK = '#4ade80';
+const NO = '#f87171';
+---
+
+<DiagramFrame
+  label="toolgate / mcp policy gateway"
+  caption="Policy runs at tools/list, not at tools/call. A poisoned description blocked at call time has already been read by the model — by then it may be acting on those instructions through a different tool entirely."
+>
+  <svg viewBox="0 0 940 430" class="h-auto w-full" role="img" aria-label="MCP security gateway architecture">
+    <defs>
+      <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill={A} />
+      </marker>
+      <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill={OK} />
+      </marker>
+      <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color={A} stop-opacity="0.2" />
+        <stop offset="100%" stop-color={A} stop-opacity="0.05" />
+      </linearGradient>
+    </defs>
+
+    {/* ---- agent ---- */}
+    <g>
+      <rect x="24" y="150" width="150" height="76" rx="10" fill="#171c26" stroke="#2f3746" />
+      <text x="99" y="180" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[11px]">AI Agent</text>
+      <text x="99" y="197" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">tools/list</text>
+      <text x="99" y="211" text-anchor="middle" class="fill-[#647082] font-mono text-[8px]">tools/call</text>
+      <line x1="178" y1="188" x2="264" y2="188" stroke={A} stroke-width="1.5" marker-end="url(#aa)" class="flow-line" />
+    </g>
+
+    {/* ---- gateway ---- */}
+    <g>
+      <rect x="272" y="40" width="270" height="350" rx="12" fill="url(#ag)" stroke={A} stroke-opacity="0.75" stroke-width="1.4" />
+      <text x="407" y="66" text-anchor="middle" class="fill-[#e8eef7] font-mono text-[12px] tracking-wide">TOOLGATE</text>
+      <text x="407" y="82" text-anchor="middle" class="fill-[#9aa7b8] font-mono text-[9px]">Spring WebFlux · deny by default</text>
+
+      {[
+        { y: 96,  n: '1', t: 'allowlist', s: 'not a heuristic', c: OK },
+        { y: 152, n: '2', t: 'fingerprint pin', s: 'SHA-256, canonical', c: OK },
+        { y: 208, n: '3', t: 'injection scan', s: 'weighted, defence in depth', c: '#fbbf24' },
+        { y: 264, n: '4', t: 'human gate', s: 'single-use, expiring', c: '#fbbf24' },
+      ].map((f) => (
+        <g>
+          <rect x="290" y={f.y} width="234" height="46" rx="7" fill="#0b0e14" stroke="#2f3746" />
+          <text x="304" y={f.y + 19} class="fill-[#e8eef7] font-mono text-[10px]">{f.n} · {f.t}</text>
+          <text x="304" y={f.y + 34} class="font-mono text-[8px]" fill={f.c}>{f.s}</text>
+        </g>
+      ))}
+
+      <rect x="290" y="322" width="234" height="46" rx="7" fill="#0b0e14" stroke={A} stroke-opacity="0.45" />
+      <text x="304" y="341" class="fill-[#f472b6] font-mono text-[10px]">audit — every decision</text>
+      <text x="304" y="356" class="fill-[#647082] font-mono text-[8px]">including what was refused, and why</text>
+    </g>
+
+    {/* ---- verdicts ---- */}
+    <g>
+      <line x1="546" y1="150" x2="628" y2="120" stroke={OK} stroke-width="1.5" marker-end="url(#ao)" class="flow-line" />
+      <text x="556" y="112" class="font-mono text-[8px]" fill={OK}>allowed → namespaced</text>
+
+      <line x1="546" y1="240" x2="616" y2="268" stroke={NO} stroke-width="1.5" stroke-dasharray="4 3" />
+      <circle cx="622" cy="270" r="9" fill="none" stroke={NO} stroke-width="1.4" />
+      <path d="M617 265 l10 10 M627 265 l-10 10" stroke={NO} stroke-width="1.4" />
+      <text x="556" y="290" class="font-mono text-[8px]" fill={NO}>denied — never enters context</text>
+    </g>
+
+    {/* ---- upstreams ---- */}
+    <text x="646" y="60" class="fill-[#647082] font-mono text-[9px] tracking-[0.18em]">MCP SERVERS</text>
+    {[
+      { y: 74,  t: 'files', s: 'read_file, write_file', ok: true },
+      { y: 138, t: 'database', s: 'query', ok: true },
+      { y: 202, t: 'compromised', s: 'description rewritten', ok: false },
+    ].map((u) => (
+      <g>
+        <rect x="646" y={u.y} width="270" height="52" rx="9" fill="#171c26"
+              stroke={u.ok ? '#2f3746' : NO} stroke-opacity={u.ok ? '1' : '0.7'} />
+        <text x="664" y={u.y + 22} class="font-mono text-[10px]" fill={u.ok ? '#e8eef7' : NO}>{u.t}</text>
+        <text x="664" y={u.y + 38} class="fill-[#647082] font-mono text-[8px]">{u.s}</text>
+      </g>
+    ))}
+
+    {/* ---- operator, deliberately separate ---- */}
+    <g>
+      <rect x="646" y="300" width="270" height="68" rx="9" fill="#0b0e14" stroke="#2f3746" stroke-dasharray="4 3" />
+      <text x="664" y="322" class="fill-[#e8eef7] font-mono text-[10px]">Operator API</text>
+      <text x="664" y="338" class="fill-[#647082] font-mono text-[8px]">approve · pins · audit</text>
+      <text x="664" y="354" class="fill-[#fbbf24] font-mono text-[8px]">separate path — the agent cannot reach it</text>
+      <line x1="524" y1="345" x2="642" y2="334" stroke="#fbbf24" stroke-opacity="0.4" stroke-width="1.2" stroke-dasharray="3 3" />
+    </g>
+
+    <path d="M600 30 v370" stroke="#2f3746" stroke-width="1" stroke-dasharray="6 5" />
+    <text x="606" y="410" class="fill-[#647082] font-mono text-[8px]">trust boundary</text>
+  </svg>
+</DiagramFrame>

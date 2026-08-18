@@ -1,0 +1,129 @@
+---
+index: 2
+title: "Toolgate — MCP Security Gateway"
+subtitle: "Closing a gap the AI agent protocol names but does not solve"
+org: "Open source"
+period: "2026"
+role: "Sole author"
+summary: "A policy gateway between an AI agent and its tool servers. It pins every tool definition, refuses ones that change after approval, scans metadata and output for injected instructions, and records every decision — the enforcement mechanism the Model Context Protocol specification says it cannot provide."
+repo: "https://github.com/AbuUsamaIbrahim/toolgate"
+facts:
+  - { label: "Protocol", value: "MCP 2026-07-28" }
+  - { label: "Runtime", value: "Java 21 · Spring WebFlux" }
+  - { label: "Tests", value: "13, adversarial" }
+  - { label: "Code", value: "Public" }
+stack: ["Java 21", "Spring Boot", "Spring WebFlux", "Project Reactor", "Model Context Protocol", "SHA-256", "JSON-RPC 2.0"]
+decisions:
+  - choice: "Filter tools at advertisement time, not only at call time"
+    rejected: "Checking policy when a tool is invoked"
+    because: "By the time a poisoned tool is called, the model has already read its description — the tool list enters the context window as trusted instruction. It may now be acting on those instructions through some entirely different tool, and blocking the one call achieves nothing. Denied tools are removed before the model ever sees them."
+  - choice: "Trust on first use, with drift that never auto-heals"
+    rejected: "Re-pinning a definition when it changes"
+    because: "Auto-healing defeats the control completely: an attacker mutates once to be refused, then mutates again to be re-trusted. TOFU has a real weakness — it assumes the first sighting is clean — and that is stated in the README rather than hidden. It detects change, not goodness."
+  - choice: "Score suspicious content rather than block on pattern matches alone"
+    rejected: "Treating the injection scanner as an authoritative filter"
+    because: "Pattern matching against natural language loses to anyone who knows the rules. The scanner earns its place as defence in depth behind the allowlist and the pins, not as the thing standing between an agent and a compromised server. Presenting a heuristic as an oracle is how security tools get trusted past their competence."
+  - choice: "Screen tool output on the return path"
+    rejected: "Validating only what the server advertises"
+    because: "A tool result reaches the model exactly as directly as a description does. A server that cannot get poisoned metadata past the fingerprint check will simply put the instructions in a response body instead."
+  - choice: "Operator API on a separate path from the agent endpoint"
+    rejected: "One API with role checks"
+    because: "Approving a call and making a call must not share a door. If the agent can reach the approval endpoint at all, a sufficiently capable agent approves itself, and the human-in-the-loop control becomes decoration."
+diagram: "agentgate"
+accent: "#f472b6"
+---
+
+## The problem
+
+The Model Context Protocol is how AI agents reach external tools. Its specification is unusually
+direct about the risk it carries:
+
+> Clients **MUST** consider tool annotations to be untrusted unless they come from trusted servers.
+
+and then, in the same document:
+
+> While MCP itself **cannot enforce these security principles at the protocol level**, implementors
+> **SHOULD** implement appropriate access controls.
+
+So the spec names the threat and correctly admits it has no mechanism for it. Every implementor is
+told to solve the same problem alone.
+
+In 2026 that stopped being theoretical. Researchers disclosed a systemic vulnerability affecting an
+estimated 200,000 MCP instances, and separately hijacked several mainstream coding agents by planting
+instructions in content those agents treated as trusted context.
+
+**The attack requires no code execution.** A tool's `description` is read by the model as operational
+instruction. Change the description and you change the agent's behaviour. Nothing in the protocol
+notices.
+
+## Shape of the system
+
+<Diagram />
+
+The agent points at the gateway instead of at its tool servers. Every tool the agent can see has
+survived four checks; every decision, including the refusals, is on the record.
+
+## Why the ordering is the design
+
+The controls run in a deliberate sequence, and the order carries more weight than any individual
+check:
+
+1. **Allowlist** — the only control here that is not a heuristic. A tool nobody authorised is refused
+   before anything else is considered, and the answer to "what can this agent reach?" lives in one
+   reviewable file.
+2. **Fingerprint** — a canonical SHA-256 over every field the model reads: name, title, description,
+   input and output schema, annotations. Keys are sorted so reordering is not mistaken for tampering;
+   values are type-tagged so `"1"` and `1` cannot collide.
+3. **Content scan** — weighted heuristics for imperative phrasing, credential paths, exfiltration
+   shapes, and invisible unicode used to hide text from human reviewers while leaving it legible to a
+   model.
+4. **Human gate** — destructive tools require a person, with grants that are single-use and expire.
+
+The critical property is *when* this runs. Filtering happens at `tools/list`, so a poisoned
+definition never enters the model's context at all. A gateway that waits until the tool is invoked
+has already lost: the instructions were read the moment the tool list was rendered into the prompt.
+
+## Proving it, adversarially
+
+A security control without an attack suite is an assertion. The tests run against a **real MCP
+server that turns hostile on command** — an actual HTTP server, not a mocked client, because the
+bugs live in the transport, the serialisation and the wiring, which is exactly what a mock assumes
+away.
+
+The main scenario walks a full compromise: the agent discovers tools, an unlisted `exec_shell` never
+reaches it, a clean call succeeds, a destructive tool demands human approval — and then the upstream
+server is compromised mid-session and rewrites a tool's description to read a private key and post it
+to an external host. The drifted tool disappears from the agent's view, an unchanged tool alongside it
+is unaffected, and the refusal is in the audit log with its evidence.
+
+Two bugs surfaced while writing those tests. One was a genuine test-isolation defect — shared state
+between scenarios meant a green suite depended on method order, which makes it worthless. The other
+was more interesting: an assertion failed because a tool was allowlisted in configuration but never
+actually advertised by the server, so the gateway refused it as "never advertised through this
+gateway." **The gateway was right and the test was wrong** — a defence-in-depth check catching
+something its own author had not thought through.
+
+## What it does not do
+
+Stated here for the same reason it is stated in the README: a security tool that oversells itself is
+worse than none.
+
+- **Trust on first use** assumes the first sighting is clean. A server compromised before it is ever
+  pinned becomes the trusted baseline.
+- **Pattern matching loses alone.** The scanner catches the unsophisticated majority and nothing more.
+- **State is in-memory.** Pins, approvals and the audit trail do not survive a restart; production
+  needs a durable append-only sink the gateway itself cannot rewrite.
+- **Callers are asserted, not authenticated.** Identity binding is the obvious next increment.
+
+## Why I built this one
+
+Most of my work is under NDA, which makes for case studies without code. This is the exception, and
+it is deliberately close to work I have already done: a reactive Spring gateway enforcing a single
+trust boundary, with an explicit allowlist, an audit trail, and a bypass list that is configuration
+rather than scattered conditionals.
+
+That is the same architecture I built for subscriber verification. The threat model is new; the
+engineering is not. Agent security in 2026 is mostly a rediscovery of problems that API gateways
+solved a decade ago — untrusted input, unclear trust boundaries, controls duplicated until the
+weakest copy defines the posture. What changed is that the untrusted input is now prose the model
+obeys.
