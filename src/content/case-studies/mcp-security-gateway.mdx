@@ -10,8 +10,8 @@ repo: "https://github.com/AbuUsamaIbrahim/toolgate"
 facts:
   - { label: "Protocol", value: "MCP 2026-07-28" }
   - { label: "Runtime", value: "Java 21 · Spring WebFlux" }
-  - { label: "Tests", value: "13, adversarial" }
-  - { label: "Code", value: "Public" }
+  - { label: "Tests", value: "79, adversarial" }
+  - { label: "Code", value: "Public · runnable" }
 stack: ["Java 21", "Spring Boot", "Spring WebFlux", "Project Reactor", "Model Context Protocol", "SHA-256", "JSON-RPC 2.0"]
 decisions:
   - choice: "Filter tools at advertisement time, not only at call time"
@@ -26,9 +26,15 @@ decisions:
   - choice: "Screen tool output on the return path"
     rejected: "Validating only what the server advertises"
     because: "A tool result reaches the model exactly as directly as a description does. A server that cannot get poisoned metadata past the fingerprint check will simply put the instructions in a response body instead."
-  - choice: "Operator API on a separate path from the agent endpoint"
-    rejected: "One API with role checks"
-    because: "Approving a call and making a call must not share a door. If the agent can reach the approval endpoint at all, a sufficiently capable agent approves itself, and the human-in-the-loop control becomes decoration."
+  - choice: "Operator API on a separate path, with its own credential, enforced by a filter"
+    rejected: "One API with role checks; or separation alone; or per-handler guards"
+    because: "Approving a call and making a call must not share a door, or a sufficiently capable agent approves itself. But separation alone is not access control — on a developer machine the agent shares a host with the gateway and can simply open a socket — so the operator API has its own token, and enabled-but-unconfigured means closed rather than open. It is a filter rather than a check inside each handler because with per-handler guards the next endpoint someone adds is unprotected until they remember to guard it, and 'remember to' is not an access control model."
+  - choice: "Confine x-mcp-header to the namespace the specification reserves for it"
+    rejected: "A block list of sensitive headers"
+    because: "This is the one field in a tool definition that instructs the transport rather than the model, so a hostile server can reach past the message body and write an HTTP header. A definition naming Authorization takes over the credential the gateway authenticates with. A block list is a race between the list and the next header someone finds a use for; requiring the reserved prefix makes every interesting header unreachable by construction."
+  - choice: "Persist pending approvals, but never granted ones"
+    rejected: "Making all state durable, for consistency"
+    because: "A pending request is a decision a human still owes, and losing the queue mid-review during a deploy is a real cost. A grant is the opposite: permission for one call, in one moment, in a context a person had in their head at the time. Writing it to disk turns a momentary yes into a standing permission that outlives the situation justifying it — the exact failure the single-use rule exists to prevent. A restart revoking every grant is the behaviour, not a gap in it."
 diagram: "agentgate"
 accent: "#f472b6"
 ---
@@ -74,10 +80,13 @@ check:
 2. **Fingerprint** — a canonical SHA-256 over every field the model reads: name, title, description,
    input and output schema, annotations. Keys are sorted so reordering is not mistaken for tampering;
    values are type-tagged so `"1"` and `1` cannot collide.
-3. **Content scan** — weighted heuristics for imperative phrasing, credential paths, exfiltration
+3. **Header confinement** — the one field in a definition that instructs the transport rather than
+   the model, checked separately because it is the only way a hostile server can reach past the
+   message body into an HTTP header.
+4. **Content scan** — weighted heuristics for imperative phrasing, credential paths, exfiltration
    shapes, and invisible unicode used to hide text from human reviewers while leaving it legible to a
    model.
-4. **Human gate** — destructive tools require a person, with grants that are single-use and expire.
+5. **Human gate** — destructive tools require a person, with grants that are single-use and expire.
 
 The critical property is *when* this runs. Filtering happens at `tools/list`, so a poisoned
 definition never enters the model's context at all. A gateway that waits until the tool is invoked
@@ -103,6 +112,42 @@ actually advertised by the server, so the gateway refused it as "never advertise
 gateway." **The gateway was right and the test was wrong** — a defence-in-depth check catching
 something its own author had not thought through.
 
+## Running it against a server that fights back
+
+The repository ships a hostile MCP server and a script that walks through what happens.
+
+```bash
+docker compose up --build -d
+./demo/walkthrough.sh
+```
+
+The server advertises four tools — one per control — and exposes an endpoint that rewrites a tool's
+description *after* it has been approved. Nothing is mocked; every line is the gateway's real answer:
+
+```
+2. What the agent is actually shown
+  - demo__read_file
+  - demo__send_email
+
+10. The record
+  DENIED             demo/fetch_url    tool declares an unacceptable x-mcp-header mirror
+  DENIED             demo/search_docs  tool metadata contains adversarial content (score 70)
+  DENIED             demo/read_file    tool definition changed since it was pinned
+  APPROVAL_REQUIRED  demo/send_email   tool is marked as requiring human approval
+  ALLOWED            demo/read_file    allowlisted and pinned
+```
+
+Four tools go in, two come out, and the two that were refused never entered the model's context. The
+poisoning stays blocked across a container restart, because the pins are on a volume — without one, a
+restart would treat the mutated definition as a first sighting and simply trust it.
+
+Building the demo found a flaw the unit tests had not. The integrity check runs before the content
+checks and pins whatever it sees for the first time — so a tool refused for poisoning still became the
+trusted baseline, and when the upstream *fixed* the description, the repair arrived as drift and sat
+blocked waiting for a human to approve it. **Remediation should not need permission.** A refused
+definition is now forgotten, and the ordering of two checks turned out to have a consequence three
+steps away.
+
 ## What it does not do
 
 Stated here for the same reason it is stated in the README: a security tool that oversells itself is
@@ -111,9 +156,12 @@ worse than none.
 - **Trust on first use** assumes the first sighting is clean. A server compromised before it is ever
   pinned becomes the trusted baseline.
 - **Pattern matching loses alone.** The scanner catches the unsophisticated majority and nothing more.
-- **State is in-memory.** Pins, approvals and the audit trail do not survive a restart; production
-  needs a durable append-only sink the gateway itself cannot rewrite.
-- **Callers are asserted, not authenticated.** Identity binding is the obvious next increment.
+- **The audit trail is a local file.** It is append-only from the gateway's side, but anything with
+  write access to the disk can edit it. A record you cannot rewrite has to live somewhere you do not
+  control.
+- **Credentials are static hashes in configuration.** That suits a self-hosted gateway; a real
+  deployment wants token expiry and an authorization server, which is why token validation is an
+  interface rather than a function.
 
 ## Why I built this one
 
