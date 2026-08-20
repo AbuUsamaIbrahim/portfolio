@@ -55,6 +55,17 @@ const Diagram = diagrams[d.diagram];
       <span>{d.period}</span>
       <span>{d.role}</span>
       {
+        d.demo && (
+          <a
+            href={d.demo}
+            class="inline-flex items-center gap-1.5 rounded px-2 py-1 font-semibold transition-opacity hover:opacity-85"
+            style={`background:${d.accent};color:#0a0d13`}
+          >
+            open the live console ↗
+          </a>
+        )
+      }
+      {
         d.repo && (
           <a
             href={d.repo}

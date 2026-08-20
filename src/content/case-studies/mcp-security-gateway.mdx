@@ -7,11 +7,12 @@ period: "2026"
 role: "Sole author"
 summary: "A policy gateway between an AI agent and its MCP servers. It governs every surface the protocol exposes — tools, resources, prompts, subscriptions and the dialogs a server can put in front of a user — pinning definitions, refusing ones that change after approval, and recording every decision. The enforcement mechanism the Model Context Protocol specification asks for and cannot provide."
 repo: "https://github.com/AbuUsamaIbrahim/toolgate"
+# demo: "https://toolgate-demo.fly.dev/toolgate"   # uncomment once the Fly deploy is live
 facts:
   - { label: "Protocol", value: "MCP 2026-07-28, in full" }
   - { label: "Runtime", value: "Java 21 · Spring WebFlux" }
   - { label: "Deployment", value: "Sidecar + control plane" }
-  - { label: "Tests", value: "426, adversarial" }
+  - { label: "Tests", value: "467, adversarial" }
   - { label: "Code", value: "Public · runnable" }
 stack: ["Java 21", "Spring Boot", "Spring WebFlux", "Project Reactor", "Model Context Protocol", "Server-Sent Events", "OAuth 2.1 / OIDC", "Ed25519", "PostgreSQL", "Kubernetes", "OpenTelemetry", "JSON-RPC 2.0"]
 decisions:
@@ -39,6 +40,9 @@ decisions:
   - choice: "When a bundle is in force, ignore local configuration rather than merging"
     rejected: "Merging central policy with the machine's own settings"
     because: "Merging means a developer widens their own allowlist by editing a file on their own laptop. That is central policy in appearance only, which is worse than none because it is believed. Local configuration keeps connectivity — how to reach a server — and never permission. A server the laptop can reach but the bundle has never heard of is allowed nothing."
+  - choice: "Publish a running instance, with read-only enforced at the endpoint"
+    rejected: "A screenshot tour, a recorded walkthrough, or hiding the buttons and calling that read-only"
+    because: "A security gateway is a claim, and a claim nobody can check is marketing. So there is a live instance with a hostile MCP server attacking it on a loop, and the console is real. Making that safe to publish is the interesting half: the console already renders without buttons when there is no session, and calling that read-only would have been easy and wrong — hiding a form is a statement about one page, while the accept and approve routes take a POST from anything that can reach them. Unsafe methods are refused in the auth filter before authentication is considered, so even a correct operator token cannot write, and signing in is refused too — a login that still worked would issue a session whose every button leads to a 403, which is a console lying about what it can do."
   - choice: "Persist pending approvals, but never granted ones"
     rejected: "Making all state durable, for consistency"
     because: "A pending request is a decision a human still owes, and losing the queue mid-review during a deploy is a real cost. A grant is the opposite: permission for one call, in one moment, in a context a person had in their head at the time. Writing it to disk turns a momentary yes into a standing permission that outlives the situation justifying it — the exact failure the single-use rule exists to prevent. A restart revoking every grant is the behaviour, not a gap in it."
@@ -128,6 +132,46 @@ something changed, and only a diff shows *what*:
 
 The repository ships the hostile server that produces it, so the whole thing runs with
 `docker compose up`.
+
+## Making the console safe to publish
+
+A security gateway is a claim, and a claim nobody can check is marketing. So the project deploys as
+a **live instance with the hostile server running beside it**, and the console is the real one — the
+same pages, rendering the same state, from the same policy engine.
+
+Publishing an operator console is not obviously a sane thing to do. It is the interface that can
+approve a blocked tool call and re-pin a changed definition, which makes "put it on the internet" and
+"and let anyone read it" two separate problems.
+
+**Read-only had to mean the endpoint, not the page.** The console already renders without buttons
+when there is no session, and it would have been easy to call that read-only and stop. It is not:
+hiding a form is a statement about one page, and the accept and approve routes take a POST from
+anything that can reach them. So unsafe methods are refused in the auth filter *before*
+authentication is considered — the answer to "what if the demo instance's operator token leaks" is
+nothing. Signing in is refused for the same reason: it is itself a POST, and a login that still
+worked would hand out a session whose every button leads to a 403, which is a console lying about
+what it can do. Methods are allowlisted rather than blocked, so a route added next year lands on the
+closed side without anyone remembering to add it.
+
+Two things stay shut alongside it. The agent endpoint keeps its authentication — the console is the
+demonstration, and an open `/mcp` would let anyone proxy through the instance and fill the audit
+trail with their own traffic. And the hostile server binds loopback inside the container with only
+the gateway's port published, because a visitor who could reach its poisoning endpoint would be
+operating the attacker rather than watching it be refused.
+
+**The other half is that a gateway with nothing to refuse looks exactly like a gateway that does not
+work.** Drift only exists after a definition changes; an approval queue only fills when something
+asks. A visitor arriving at a freshly started instance would see five zeroes and four empty states,
+which demonstrates nothing. So a scenario driver attacks the gateway on a four-minute loop: a tool
+that was never advertised, a call that needs a human, a description quietly reworded, a description
+poisoned, a read of `/etc/shadow`. It calls the gateway in-process through the same policy engine as
+any other caller and holds no credential — which is the only reason the screen means anything.
+Nothing on it is simulated or replayed.
+
+Both switches are off in every other configuration, and a test asserts the shipped defaults do not
+quietly turn either on. It runs scale-to-zero: the gateway starts in about 1.3 seconds, so a visitor
+arriving at a stopped machine waits roughly a page load, and an idle demonstration costs nothing to
+keep published.
 
 ## Shape of the system
 
@@ -461,7 +505,7 @@ bugs:
   tests called the method directly; over HTTP, WebFlux's form reader claims the content type and
   rejects a `byte[]` parameter. The signature verification it existed for had never once run.
 
-Then two more, found only by using it rather than calling it:
+Then three more, found only by using it rather than calling it:
 
 - The operator console **wiped the password field every fifteen seconds.** The sign-in page inherited
   the dashboard's auto-refresh from a shared page shell, so a token typed by hand — or waited on from
@@ -472,17 +516,26 @@ Then two more, found only by using it rather than calling it:
   minute, indefinitely** — only successes were cached, so a failing endpoint was re-asked on every
   poll. On a free account that is a rate limit; on a paid one it is a billing leak, for an advisory
   note nobody is required to read.
+- The console **rendered with no styling at all** — Times New Roman on white, no cards, and the red
+  markers that show an invisible character in a drift diff gone with the rest. A live-update feature
+  had added a nonce to `style-src`, and a nonce in `style-src` makes a browser ignore
+  `'unsafe-inline'`: the page's own stylesheet, which carried no nonce, was refused along with every
+  inline style attribute on it. The suite was green and `curl` returned correct HTML throughout,
+  because the markup *was* correct — the policy was refusing to apply it. Only a browser could see
+  the difference between markup that is right and a page that works.
 
 Five of the eight are mine rather than the protocol's, and none were security holes — they failed
 closed. But one silently dropped real messages, two taught an operator to ignore the log, one left a
 signature check that had never executed, and one made the console unusable at exactly the moment
 someone needed to get into it. **Every one is a way a working control stops being one.**
 
-The two found last are the ones I would show a reviewer, because they share a blind spot the other
-six do not: both faults were **only visible over time**. A single request saw correct markup and a
-correct HTTP call. Nothing in 426 tests exercised a page still open fifteen seconds later, or a
-provider that kept failing. Test suites assert on one response; some defects only exist in the
-second one.
+The three found last are the ones I would show a reviewer, because they share a blind spot the other
+six do not: **an assertion on a response cannot see what a person would see.** A single request
+returned correct markup and a correct HTTP call in every one of them. Nothing in the suite exercised
+a page still open fifteen seconds later, a provider that kept failing, or a browser deciding not to
+apply a stylesheet it had been handed. Two of the three were in the operator console — which is the
+part a human is supposed to look at, and therefore the part where "the markup is correct" is the
+weakest possible defence.
 
 ## What it does not do
 

@@ -26,6 +26,15 @@ const caseStudies = defineCollection({
     diagram: z.enum(['pipeline', 'ledger', 'gateway', 'erp', 'microservices', 'agentgate']),
     /** Public repository, when the work is not under NDA. */
     repo: z.string().optional(),
+    /**
+     * A running instance anyone can open.
+     *
+     * Optional, and deliberately a separate field from `repo`: it renders as the primary
+     * call to action, so it must only be set once the URL actually resolves. A dead demo
+     * link on a portfolio is worse than no demo link — it is a claim the reader can check
+     * in one click.
+     */
+    demo: z.string().url().optional(),
     accent: z.string().default('#22d3ee'),
     draft: z.boolean().default(false),
   }),
