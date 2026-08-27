@@ -143,8 +143,14 @@ const CERTS = [
       >
         Save as PDF ↓
       </button>
-      <p class="font-mono text-[11px] text-[var(--color-ink-faint)]">
-        Prints single-column, black on white — parses cleanly in applicant tracking systems.
+      {/* The reminder is here because the browser's stamp is outside the page and no
+          stylesheet can reach it. Chrome prints the date, the tab title and the URL
+          into the paper margin unless the box is unticked, and it remembers the
+          choice — so this is a note you need once. */}
+      <p class="font-mono text-[11px] leading-relaxed text-[var(--color-ink-faint)]">
+        Prints single-column, black on white — parses cleanly in applicant tracking systems.<br />
+        In the print dialog, untick <strong class="text-[var(--color-ink-dim)]">Headers and footers</strong>
+        under “More settings”, or the browser stamps the date and URL onto the page.
       </p>
     </div>
 
