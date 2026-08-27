@@ -7,13 +7,21 @@ import Layout from '../layouts/Layout.astro';
 ------------------------------------------------------------------ */
 const PHONE = '+880 1833 183667';
 
-const CONTACT = [
+/* Two deliberate lines rather than one long one.
+   Joined into a single string, these five items overflow the A4 text column and
+   wrap wherever the line happens to run out — usually mid-URL, which is the one
+   place a break is unreadable. Splitting them by kind (where to reach him / where
+   to read more) puts the break where it was chosen rather than where it landed. */
+const CONTACT_REACH = [
   'Dhaka, Bangladesh',
-  'mahadihasan.parash@gmail.com',
-  PHONE,
-  'linkedin.com/in/mahadihasan-parash',
-  'mahadi-hasan.pages.dev',
+  { text: 'mahadihasan.parash@gmail.com', href: 'mailto:mahadihasan.parash@gmail.com' },
+  { text: PHONE, href: `tel:${PHONE.replace(/\s/g, '')}` },
 ].filter(Boolean);
+
+const CONTACT_LINKS = [
+  { text: 'linkedin.com/in/mahadihasan-parash', href: 'https://linkedin.com/in/mahadihasan-parash' },
+  { text: 'mahadi-hasan.pages.dev', href: 'https://mahadi-hasan.pages.dev' },
+];
 
 const SUMMARY = `Lead Software Engineer with 8+ years building event-driven backend systems for telecom billing, mobile financial services and utility platforms. Currently leading a team of 4 engineers on an invoice pipeline generating approximately 2 million customer invoices per billing cycle. Deep experience in Java, Kotlin, Spring Boot, Apache Kafka, microservices architecture and Kubernetes, with a track record of designing distributed systems where correctness and auditability are non-negotiable. Experienced across core banking integration, payment platforms, API security and large-scale ERP.`;
 
@@ -145,7 +153,24 @@ const CERTS = [
       <header class="cv-head">
         <h1>Mahadi Hasan Parash</h1>
         <p class="cv-role">Lead Software Engineer</p>
-        <p class="cv-contact">{CONTACT.join('  •  ')}</p>
+        {
+          [CONTACT_REACH, CONTACT_LINKS].map((line) => (
+            <p class="cv-contact">
+              {line.map((item, i) => (
+                <>
+                  {/* real spaces around the bullet, not just CSS padding: a parser
+                      reads the text, and "Bangladesh•name@gmail.com" is one token */}
+                  {i > 0 && <span class="cv-sep">{' • '}</span>}
+                  {/* nowrap so a break can only fall on a separator, never inside
+                      an address or a URL */}
+                  <span class="cv-contact-item">
+                    {typeof item === 'string' ? item : <a href={item.href}>{item.text}</a>}
+                  </span>
+                </>
+              ))}
+            </p>
+          ))
+        }
       </header>
 
       {/* ---------- SUMMARY ---------- */}
@@ -213,19 +238,41 @@ const CERTS = [
 <style is:global>
   /* ---------- shared structure ---------- */
   .cv h1 {
-    font-size: 1.9rem;
+    font-size: 2rem;
     font-weight: 700;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
   }
   .cv .cv-role {
-    margin-top: 0.15rem;
-    font-size: 1.05rem;
+    margin-top: 0.3rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
     color: var(--color-flow);
   }
   .cv .cv-contact {
     margin-top: 0.5rem;
     font-size: 0.85rem;
     color: var(--color-ink-dim);
+  }
+  .cv .cv-contact + .cv-contact {
+    margin-top: 0.2rem;
+  }
+  /* A break may fall on a separator, never inside an address or a URL. */
+  .cv .cv-contact-item {
+    white-space: nowrap;
+  }
+  .cv .cv-sep {
+    padding: 0 0.5rem;
+    opacity: 0.55;
+  }
+  .cv .cv-contact a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .cv .cv-contact a:hover {
+    color: var(--color-flow);
   }
   .cv-head {
     border-bottom: 2px solid var(--color-line-bright);
@@ -297,7 +344,12 @@ const CERTS = [
     body::before {
       display: none !important;
     }
-    header,
+    /* The site chrome goes; the CV's own masthead stays.
+       `header` on its own also matches .cv-head — which is a <header> — so this
+       rule was silently deleting the name, role and contact details from every
+       printed copy. The page still looked fine on screen, and the PDF was a CV
+       belonging to nobody. */
+    header:not(.cv-head),
     footer,
     nav,
     .print\:hidden {
@@ -314,11 +366,24 @@ const CERTS = [
       font-family: Georgia, "Times New Roman", serif;
     }
     .cv h1 {
-      font-size: 20pt;
+      font-size: 21pt;
+      letter-spacing: 0.01em;
+      line-height: 1.05;
     }
     .cv .cv-role,
     .cv h2 {
       color: #000 !important;
+    }
+    .cv .cv-role {
+      font-size: 10.5pt;
+      letter-spacing: 0.16em;
+      margin-top: 2.5pt;
+    }
+    /* The separator carries the eye across a line of unlike things; at full black
+       it competes with them instead. */
+    .cv .cv-sep {
+      padding: 0 4.5pt;
+      color: #666 !important;
     }
     .cv h2 {
       font-size: 10.5pt;
@@ -337,8 +402,17 @@ const CERTS = [
     .cv .cv-meta {
       font-size: 9.5pt;
     }
+    .cv .cv-contact {
+      margin-top: 5pt;
+      color: #222 !important;
+    }
+    .cv .cv-contact + .cv-contact {
+      margin-top: 1.5pt;
+    }
     .cv-head {
-      border-bottom: 1.5pt solid #000;
+      border-bottom: 1pt solid #000;
+      padding-bottom: 8pt;
+      margin-bottom: 2pt;
     }
     .cv section {
       margin-top: 10pt;
