@@ -23,7 +23,7 @@ const CONTACT_LINKS = [
   { text: 'mahadi-hasan.pages.dev', href: 'https://mahadi-hasan.pages.dev' },
 ];
 
-const SUMMARY = `Lead Software Engineer with 8+ years building event-driven backend systems for telecom billing, mobile financial services and utility platforms. Currently leading a team of 4 engineers on an invoice pipeline generating approximately 2 million customer invoices per billing cycle. Java, Kotlin, Spring Boot, Apache Kafka, microservices and Kubernetes, with a track record of distributed systems where correctness and auditability are non-negotiable, across core banking integration, payment platforms, API security and large-scale ERP.`;
+const SUMMARY = `Lead Software Engineer with 8+ years building event-driven backend systems for telecom BSS, mobile financial services and utility platforms. Primary author of the usage mediation, rating and charging, and revenue reporting services of a convergent postpaid billing stack, and currently leading a team of 4 engineers on a bill run producing approximately 2 million invoices per cycle. Java, Kotlin, Spring Boot, Apache Kafka, microservices and Kubernetes, across core banking integration, payment platforms, API security and large-scale ERP, where correctness and auditability are non-negotiable.`;
 
 const SKILLS = [
   { g: 'Languages', v: 'Java (8/17/21), Kotlin, Groovy, JavaScript, TypeScript, SQL, PL/SQL' },
@@ -32,7 +32,8 @@ const SKILLS = [
   { g: 'Databases', v: 'Oracle, PostgreSQL, MS SQL Server, MySQL, ClickHouse, Redis, Flyway, Liquibase' },
   { g: 'Cloud & DevOps', v: 'Docker, Kubernetes, Helm, ArgoCD, GitLab CI/CD, SonarQube, Harbor, Git, Linux' },
   { g: 'Security', v: 'OAuth2, JWT, HMAC, ECDH Key Exchange, AES-GCM, Spring Security, Azure AD' },
-  { g: 'Fintech & Domain', v: 'Apache Fineract, Cyclos, Core Banking (CBS), Double-Entry Ledger, ISO 8583, Telecom Billing (BSS), KYC, Mobile Financial Services (MFS)' },
+  { g: 'Telecom BSS', v: 'Convergent Postpaid Billing, Rating & Charging, Usage Mediation, Bill Run, Invoicing & Bill Presentment, Account Hierarchies, Revenue Reporting, Dealer & Channel Management (SFA)' },
+  { g: 'Fintech & Payments', v: 'Mobile Financial Services (MFS), Agent Banking, Core Banking (CBS), Apache Fineract, Cyclos, Double-Entry Ledger, ISO 8583, KYC' },
   { g: 'Practices', v: 'Microservice Design, System Design, Distributed Systems, Code Review, Technical Leadership, Mentoring, Agile' },
 ];
 
@@ -43,11 +44,11 @@ const EXPERIENCE = [
     loc: 'Dhaka, Bangladesh',
     dates: 'Jun 2026 – Present',
     bullets: [
-      'Lead backend engineering across two enterprise platforms: postpaid billing and invoicing, and a nationwide sales and distribution (SFA) platform.',
-      'Lead a team of 4 engineers delivering an event-driven invoice pipeline that generates approximately 2 million customer invoices per billing cycle.',
+      'Lead backend engineering across two enterprise platforms: a postpaid billing and invoicing (BSS) platform, and a nationwide dealer and channel management (SFA) platform.',
+      'Lead a team of 4 engineers delivering the event-driven invoicing pipeline that produces approximately 2 million customer invoices per bill run.',
       'Own release integration for a 14-module Java 21 / Spring Boot monorepo, stabilising the development line into staging and clearing SonarQube quality-gate and container-registry issues across GitLab CI pipelines deploying via Helm and ArgoCD to Kubernetes.',
-      'Extended corporate billing to support parent/child account hierarchies, bulk PDF generation and automated mail reconciliation for delivery verification.',
-      'Delivered SFA features spanning retailer stock, electronic load, cash-in-hand ledger, incentives and geospatial territory mapping using Hibernate Spatial and JTS.',
+      'Extended B2B billing to support parent/child account hierarchies, bulk invoice generation and automated mail reconciliation for bill-delivery verification.',
+      'Delivered channel-management features spanning retailer stock, electronic recharge (e-load), cash-in-hand ledger, commissions and geospatial territory mapping using Hibernate Spatial and JTS.',
     ],
   },
   {
@@ -56,12 +57,12 @@ const EXPERIENCE = [
     loc: 'Dhaka, Bangladesh',
     dates: 'Sep 2024 – Jun 2026',
     bullets: [
-      'Primary author of the core services of a postpaid billing platform: XML billing parser, charging service and reporting service.',
-      'Architected an event-driven invoice pipeline — Spring Batch XML parsing, Apache Kafka transport, PDF generation and email notification over Redis handoff and Oracle persistence — made reliable with timeout backstops, stalled-producer detection and explicit backpressure, eliminating silent stalls in the billing cycle.',
+      'Primary author of the core services of a convergent postpaid billing platform: usage mediation (bulk XML usage-file parsing), rating and charging, and revenue reporting.',
+      'Architected the event-driven bill run — Spring Batch usage-file mediation, Apache Kafka transport, invoice generation and email bill presentment over Redis handoff and Oracle persistence — made reliable with timeout backstops, stalled-producer detection and explicit backpressure, eliminating silent stalls mid-cycle.',
       'Published a shared Java contract library standardising Kafka topics, compression and DTOs across 6 microservices, turning integration drift into compile-time errors; designed the data layer across Oracle, PostgreSQL and ClickHouse with versioned migrations and ShedLock-coordinated scheduling.',
-      'Delivered core banking and ledger features on a digital wallet platform integrated with Apache Fineract — general ledger statements, end-of-day CBS reporting, payment-type handling and transaction reversal via compensating entries — as repository maintainer on the wallet core and portal repositories.',
+      'Delivered core banking (CBS) and ledger features on a digital wallet platform integrated with Apache Fineract — general ledger statements, end-of-day CBS reporting, payment-type handling and transaction reversal via compensating entries — as repository maintainer on the wallet core and portal repositories.',
       'Built a reactive API gateway from scratch with Spring Cloud Gateway and WebFlux using ECDH key exchange, AES-GCM payload encryption, HMAC request signing and JWT validation, alongside biometric KYC services: fingerprint matching (SourceAFIS), national ID OCR and face-match APIs.',
-      'Built retailer-facing MFS features in Kotlin and Java — digital memo with PDF generation, stock APIs, electronic load, campaign commissions, direct recharge with barred-customer validation — plus an operations portal with a React front end on Spring Security / Azure AD OAuth2; mentored and reviewed code for a team of 4.',
+      'Built retailer-facing MFS features in Kotlin and Java — digital memo with PDF generation, stock APIs, electronic recharge (e-load), campaign commissions, direct top-up with barred-subscriber validation — plus an operations portal with a React front end on Spring Security / Azure AD OAuth2; mentored and reviewed code for a team of 4.',
     ],
   },
   {
@@ -90,8 +91,8 @@ const EXPERIENCE = [
     loc: 'Dhaka, Bangladesh',
     dates: 'Feb 2019 – Jan 2022',
     bullets: [
-      'Developed the customer billing and revenue ERP used by three state-owned gas distribution companies, comprising approximately 90 controllers across 15 modules.',
-      'Built core modules in Grails and Groovy covering customer management, metering, billing and revenue, demand notes, bank collections, prepaid transactions and the full connection lifecycle: load change, ownership transfer, meter change, disconnection, reconnection and zone migration.',
+      'Developed the billing and revenue management ERP used by three state-owned gas distribution companies, comprising approximately 90 controllers across 15 modules.',
+      'Built core modules in Grails and Groovy covering customer management, metering, rating and billing, demand notes, bank collections, prepaid transactions and the full connection lifecycle: load change, ownership transfer, meter change, disconnection, reconnection and zone migration.',
       'Developed vigilance and legal modules for unauthorised-use cases and litigation tracking, and built operational and financial reporting with Jasper Reports over Oracle using PL/SQL stored procedures.',
     ],
   },
@@ -391,7 +392,7 @@ const CERTS = [
     .cv p,
     .cv li {
       font-size: 9.7pt;
-      line-height: 1.34;
+      line-height: 1.31;
     }
     /* Print density. The screen rules are set in rem against a 16px root and
        carry far more air than paper needs — a 1.15rem gap under each role is
@@ -399,8 +400,8 @@ const CERTS = [
        copy inherited screen spacing and ran to three pages. */
     .cv .cv-skill {
       font-size: 9.7pt;
-      line-height: 1.34;
-      margin-bottom: 2.5pt;
+      line-height: 1.31;
+      margin-bottom: 2pt;
     }
     .cv ul {
       margin-top: 2.5pt;
