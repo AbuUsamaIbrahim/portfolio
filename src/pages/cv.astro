@@ -225,6 +225,13 @@ const CERTS = [
 
 <script>
   document.getElementById('print-cv')?.addEventListener('click', () => window.print());
+
+  /* Tracked on `beforeprint` rather than on the button, because the button is only one
+     of the two ways out: plenty of people hit Cmd-P. Both routes land in the same print
+     dialog, and both mean the same thing — someone is taking the CV away with them. */
+  window.addEventListener('beforeprint', () => {
+    (window as Window & { umami?: { track: (event: string) => void } }).umami?.track('cv-print');
+  });
 </script>
 
 <style is:global>

@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { UMAMI_WEBSITE_ID, UMAMI_SRC, UMAMI_DOMAINS } from '../analytics';
 
 interface Props {
   title?: string;
@@ -92,6 +93,19 @@ const nav = [
     {person && (
       <script type="application/ld+json" set:html={JSON.stringify(personSchema)} />
     )}
+
+    {/* Cookieless analytics. `is:inline` because Astro would otherwise try to take this
+        into its own bundle and drop the data-* attributes the script reads its own
+        configuration from. Empty ID means no tag, which is the point. */}
+    {UMAMI_WEBSITE_ID && (
+      <script
+        is:inline
+        defer
+        src={UMAMI_SRC}
+        data-website-id={UMAMI_WEBSITE_ID}
+        data-domains={UMAMI_DOMAINS}
+      />
+    )}
   </head>
 
   <body class="relative">
@@ -136,8 +150,13 @@ const nav = [
 
     <footer class="relative z-10 mt-24 border-t border-[var(--color-line)]">
       <div class="mx-auto flex max-w-5xl flex-col gap-3 px-5 py-10 sm:flex-row sm:items-center sm:justify-between">
+        {/* The claim has to follow the code. With no website ID there is genuinely
+            nothing loaded from anywhere else; with one, saying "no external requests"
+            would be a lie told in the footer of a site about being precise. */}
         <p class="font-mono text-[11px] text-[var(--color-ink-faint)]">
-          Built with Astro. No trackers, no cookies, no external requests.
+          {UMAMI_WEBSITE_ID
+            ? 'Built with Astro. Cookieless analytics — no cookies, no personal data.'
+            : 'Built with Astro. No trackers, no cookies, no external requests.'}
         </p>
         <p class="font-mono text-[11px] text-[var(--color-ink-faint)]">
           Dhaka, Bangladesh

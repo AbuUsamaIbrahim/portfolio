@@ -67,8 +67,12 @@ const stack = [
         Read the case studies
         <span class="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
+      {/* `place` separates the polite click from the hero and the deliberate one from
+          the contact block. Same destination, very different intent. */}
       <a
         href="https://www.linkedin.com/in/mahadihasan-parash/"
+        data-umami-event="linkedin-click"
+        data-umami-event-place="hero"
         class="rounded-lg border border-[var(--color-line-bright)] px-4 py-2.5 font-mono text-[12px] text-[var(--color-ink-dim)] transition-colors hover:border-[var(--color-ink-dim)] hover:text-[var(--color-ink)]"
       >
         LinkedIn ↗
@@ -110,6 +114,8 @@ const stack = [
           <li class="reveal">
             <a
               href={`/work/${s.id}/`}
+              data-umami-event="case-study-open"
+              data-umami-event-study={s.id}
               class="group relative block overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]/60 p-6 transition-all duration-300 hover:border-[var(--color-line-bright)] hover:bg-[var(--color-surface)] sm:p-7"
             >
               <span
@@ -216,12 +222,16 @@ const stack = [
       <div class="mt-7 flex flex-wrap gap-3">
         <a
           href="https://www.linkedin.com/in/mahadihasan-parash/"
+          data-umami-event="linkedin-click"
+          data-umami-event-place="contact"
           class="inline-flex items-center gap-2 rounded-lg border border-[var(--color-flow)]/45 bg-[var(--color-flow)]/10 px-4 py-2.5 font-mono text-[12px] transition-colors hover:bg-[var(--color-flow)]/15"
         >
           LinkedIn ↗
         </a>
         <a
           href="https://github.com/AbuUsamaIbrahim"
+          data-umami-event="github-click"
+          data-umami-event-place="contact"
           class="rounded-lg border border-[var(--color-line-bright)] px-4 py-2.5 font-mono text-[12px] text-[var(--color-ink-dim)] transition-colors hover:text-[var(--color-ink)]"
         >
           GitHub ↗
