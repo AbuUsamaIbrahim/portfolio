@@ -5,7 +5,7 @@ date: 2026-08-30
 series: "Kubernetes"
 stage: "Stage 2 — Debugging"
 summary: "Four requests, one working app, four different exit codes, and no logs read. The interesting pair is 7 and 28: the identical mistake — a port nothing listens on — produces an instant TCP reset against a Pod IP and six seconds of silence against a ClusterIP, because only one of those addresses is a real machine."
-tags: ["kubernetes", "networking", "debugging", "kind", "curl"]
+tags: ["kubernetes", "networking", "debugging", "kube-proxy", "iptables"]
 repo: "https://github.com/AbuUsamaIbrahim/k8s-lab"
 accent: "#fbbf24"
 ---
@@ -121,16 +121,41 @@ The row that costs people the most time is the last one they check: a `404` from
 every layer underneath it worked. The request resolved, connected, was proxied, and came back. There
 is nothing to debug below L7.
 
-## Silence is the L4 signature
+## The silence is in the logs, not on the wire
 
 The stage-1 version of this lesson was cheaper and nastier. I broke a Service selector by one
 character — one letter in one label — and the result was `curl` exit 7 and **no error message
 anywhere, in any log, in any component**. Not in the app, not in kube-proxy, not in the events.
 
-That is correct behaviour, and it follows directly from the second rule above. At L4 there is nobody
-whose job it is to generate an error. An HTTP 503 requires something that speaks HTTP; a Service
-does not. When the Endpoints list is empty there is simply no DNAT rule to match, and packets go
-nowhere quietly. The EndpointSlice is where that failure is visible, and it is visible as an absence:
+I had assumed the packets were being dropped the way case 4's were. They are not, and the difference
+is worth getting right, because an empty Endpoints list and an unmatched port are *not* the same
+failure. Reproducing it with the selector broken again:
+
+```
+empty-endpoints: exit=7 http=000
+```
+
+Exit 7, immediately — refused, not timed out. If the rule had simply been missing this would have
+been a 28. So I went looking at what kube-proxy actually installed:
+
+```
+chain KUBE-SERVICES {
+  meta l4proto tcp ip daddr 10.96.15.60 tcp dport 80 counter packets 1 bytes 60 reject
+}
+```
+
+A Service with no endpoints does not lose its rule — **it gains a `reject` rule**. kube-proxy
+replaces DNAT with an explicit refusal, and `packets 1` is my own SYN being counted on its way to
+being turned away. Fix the selector and the rule disappears again; the DNAT comes back.
+
+That is a deliberate design choice and a kind one: failing fast beats hanging. A client gets an
+instant, honest refusal instead of a connection that dies on a timeout thirty seconds later, which
+is the difference between a fast error page and a thread pool filling up.
+
+So the silence is real, but it is in the *observability*, not the network. At L4 there is nobody
+whose job it is to log. An HTTP 503 requires something that speaks HTTP, and a Service does not —
+it answers in TCP, correctly and instantly, and writes nothing down. The EndpointSlice is where
+the failure is visible, and it is visible as an absence:
 
 ```
 NAME            READY   ADDR
