@@ -40,4 +40,33 @@ const caseStudies = defineCollection({
   }),
 });
 
-export const collections = { 'case-studies': caseStudies };
+/**
+ * Field notes — the learning series, published as it happens.
+ *
+ * Deliberately a separate collection from the case studies rather than a `kind` field on
+ * one. A case study argues an architecture I already shipped; a field note reports an
+ * experiment I ran this week and the output it actually produced. They are ordered
+ * differently (index vs date), they age differently, and a reader should never have to
+ * work out which one they are reading.
+ */
+const fieldNotes = defineCollection({
+  loader: glob({ pattern: '**/*.mdx', base: './src/content/field-notes' }),
+  schema: z.object({
+    title: z.string(),
+    subtitle: z.string(),
+    /** Ordering and the dateline. Notes are chronological; case studies are not. */
+    date: z.coerce.date(),
+    /** The running series this note belongs to, e.g. "Kubernetes". */
+    series: z.string(),
+    /** Where in that series' roadmap the note sits. Shown as the eyebrow beside the series. */
+    stage: z.string().optional(),
+    summary: z.string(),
+    tags: z.array(z.string()).default([]),
+    /** The lab repository the note's commands and manifests come from. */
+    repo: z.string().url().optional(),
+    accent: z.string().default('#fbbf24'),
+    draft: z.boolean().default(false),
+  }),
+});
+
+export const collections = { 'case-studies': caseStudies, 'field-notes': fieldNotes };

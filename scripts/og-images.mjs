@@ -91,16 +91,35 @@ await render('default', {
   accent: '#38bdf8',
 });
 
-// One per case study, from its own frontmatter, so a shared link previews itself.
-const dir = 'src/content/case-studies';
-for (const file of (await readdir(dir)).filter((f) => f.endsWith('.mdx'))) {
-  const raw = await readFile(path.join(dir, file), 'utf8');
-  const fm = raw.slice(0, raw.indexOf('\n---', 4));
-  const get = (k) => (fm.match(new RegExp(`^${k}:\\s*"?(.*?)"?\\s*$`, 'm')) || [])[1] || '';
-  await render(file.replace(/\.mdx$/, ''), {
-    eyebrow: get('org') || 'Case study',
-    title: get('title'),
-    subtitle: get('subtitle'),
-    accent: get('accent') || '#38bdf8',
-  });
+/**
+ * One card per entry, from its own frontmatter, so a shared link previews itself.
+ *
+ * `prefix` keeps the two collections from colliding in /og when a case study and a field
+ * note ever share a slug — the page passes the same prefixed name to the layout.
+ */
+async function renderCollection(dir, { prefix = '', eyebrowKey, fallbackEyebrow, accent }) {
+  for (const file of (await readdir(dir)).filter((f) => f.endsWith('.mdx'))) {
+    const raw = await readFile(path.join(dir, file), 'utf8');
+    const fm = raw.slice(0, raw.indexOf('\n---', 4));
+    const get = (k) => (fm.match(new RegExp(`^${k}:\\s*"?(.*?)"?\\s*$`, 'm')) || [])[1] || '';
+    await render(prefix + file.replace(/\.mdx$/, ''), {
+      eyebrow: get(eyebrowKey) || fallbackEyebrow,
+      title: get('title'),
+      subtitle: get('subtitle'),
+      accent: get('accent') || accent,
+    });
+  }
 }
+
+await renderCollection('src/content/case-studies', {
+  eyebrowKey: 'org',
+  fallbackEyebrow: 'Case study',
+  accent: '#38bdf8',
+});
+
+await renderCollection('src/content/field-notes', {
+  prefix: 'note-',
+  eyebrowKey: 'series',
+  fallbackEyebrow: 'Field note',
+  accent: '#fbbf24',
+});

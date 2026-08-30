@@ -1,0 +1,165 @@
+---
+title: "Four ways to fail against one healthy Service"
+subtitle: "curl exit 0, 6, 7 and 28 — and why the same wrong port gives opposite symptoms"
+date: 2026-08-30
+series: "Kubernetes"
+stage: "Stage 2 — Debugging"
+summary: "Four requests, one working app, four different exit codes, and no logs read. The interesting pair is 7 and 28: the identical mistake — a port nothing listens on — produces an instant TCP reset against a Pod IP and six seconds of silence against a ClusterIP, because only one of those addresses is a real machine."
+tags: ["kubernetes", "networking", "debugging", "kind", "curl"]
+repo: "https://github.com/AbuUsamaIbrahim/k8s-lab"
+accent: "#fbbf24"
+---
+
+When something in a cluster stops answering, the reflex is to reach for a command. The reflex is
+wrong. The useful question is *which layer is this*, and once that is settled the command is
+obvious. Get the layer wrong and you can read entirely correct output and learn nothing from it —
+which is how an afternoon disappears into application logs about a problem that is two layers below
+the application.
+
+So this note is the layer ladder, and then an experiment that makes four different layers say
+something distinguishable about the same healthy app.
+
+## The ladder
+
+OSI is a teaching model from 1984 and the internet does not actually run on it; layers 5 and 6 are
+vestigial and almost nothing maps cleanly onto them. Keep it for the vocabulary — people say
+"L4 load balancer" and "L7 routing" and mean something precise — not as a description of real
+software. Mapped onto Kubernetes, the part that matters collapses to three rows:
+
+| OSI | What lives there | The Kubernetes object |
+| --- | --- | --- |
+| L7 Application | HTTP paths, hostnames, TLS termination, retries | Ingress, Gateway API, a service mesh |
+| L4 Transport | TCP/UDP **ports**. Connect, refuse, reset. | **Service** — ClusterIP, NodePort, LoadBalancer — and kube-proxy |
+| L3 Network | **IP** addresses and routing between hosts | **Pod IP**, the CNI plugin, NetworkPolicy selectors |
+
+Three rules generate most of the behaviour above:
+
+- **Every Pod gets its own real IP, and pods talk with no NAT.** This is the founding rule of
+  Kubernetes networking, and it is why a pod can bind 8090 without colliding with anything else on
+  the node — those are different IPs, not different ports on one IP. It is the opposite of plain
+  Docker's port-mapping world.
+- **A Service is L4 and nothing more.** It rewrites destination IP and port. It does not read HTTP,
+  cannot route by path or hostname, and cannot retry. On a node it is a set of iptables DNAT rules
+  with `--probability 0.5` for the second backend — not a proxy process.
+- **Anything that understands HTTP is L7 and is a separate pod running real proxy software.** An
+  Ingress controller is nginx or Envoy in a container, reading Ingress objects and rewriting its own
+  config. Kubernetes itself does no L7 work at all.
+
+Climbing that ladder from the bottom is the debugging procedure. Each rung is one question with one
+command:
+
+| Rung | Question | Command |
+| --- | --- | --- |
+| L3 | Does the pod have an IP? | `kubectl get pod -o wide` |
+| L3 | Can anything reach that IP? | `kubectl exec … -- ping <podIP>` |
+| L4 | Is the process actually listening? | `kubectl exec … -- ss -ltnp` |
+| L4 | Does the Service know about the pod? | `kubectl get endpointslice` — `READY` must be true |
+| L4 | Is the DNAT rule there? | `iptables -t nat -L KUBE-SERVICES` on the node |
+| DNS | Does the name resolve? | `nslookup control.default.svc.cluster.local` |
+| L7 | Does it speak HTTP? | `curl -v`, and read the status code |
+
+Do not skip rungs. Almost every wasted hour in Kubernetes networking is someone reading L7 output
+about an L4 problem.
+
+## The experiment
+
+The claim I wanted to hold up to something is that the *shape* of a failure names its layer before
+you read any message. So: one kind cluster, one healthy Deployment — the control plane of
+[toolgate](https://github.com/AbuUsamaIbrahim/toolgate), which is just a JVM service that serves an
+actuator endpoint — and four requests from a throwaway `curlimages/curl` pod. Nothing about the app
+changes between them. Only the address does.
+
+```
+case 1  exit=0   http=200   <- http://control/actuator/health
+case 2  exit=6   http=000   <- http://nosuchservice/
+case 3  exit=7   http=000   <- http://10.244.0.5:9999/     (pod IP, dead port)
+case 4  exit=28  http=000   <- http://control:9999/        (Service IP, dead port)
+```
+
+Four exit codes, one broken thing each, and no logs consulted — there were none to consult, which is
+itself the point.
+
+**Case 2, exit 6 — could not resolve host.** The request never left the resolver. CoreDNS had no
+record for that name, so nothing was ever put on the wire. Wrong Service name, wrong namespace, or
+DNS itself is unwell; the app is not implicated in any way.
+
+**Case 3, exit 7 — failed to connect.** Here the address is the Pod IP, a genuinely routable address
+in the CNI's network with a real network namespace behind it. The SYN arrives, the kernel finds
+nothing bound to 9999, and it answers with a **TCP RST**. The reply is immediate. The pod is telling
+you, correctly and politely, *I am here and there is nothing on that port*.
+
+**Case 4, exit 28 — timed out.** Same mistake as case 3, expressed against a ClusterIP instead of a
+Pod IP. A ClusterIP is not a machine. It is a *virtual* address that exists only as iptables rules
+on each node, and those rules match on port. No rule matches 9999, so the packet is not rejected —
+it is dropped into nothing. There is no host to generate an RST, because there is no host. What you
+get is six seconds of silence and then curl giving up.
+
+Cases 3 and 4 are the identical error against a real IP and a virtual one, and they produce opposite
+symptoms. That is the whole reason the refused/timeout distinction is worth internalising:
+
+> **Refused means a machine answered you** — it is reachable, nothing is listening.
+> **Timeout means nobody answered** — unreachable, filtered, or the path does not exist.
+
+They feel like the same failure and they mean opposite things. `7` says the machine exists but the
+port does not. `28` says the path does not exist at all.
+
+## The signature table
+
+The generalised version, which is the part I actually want in my head:
+
+| What you see | Layer | What it means |
+| --- | --- | --- |
+| `curl: (6) Could not resolve host` | DNS | CoreDNS, wrong Service name, wrong namespace |
+| `curl: (7) Failed to connect` | L3/L4 | Empty Endpoints, wrong port, process not listening |
+| `Connection refused` | L4 | Something is reachable and sent a TCP RST |
+| `curl: (28) timed out` | L3/L4 | Silently dropped — NetworkPolicy, firewall, or a black hole |
+| `502` / `503` from an Ingress | L7 → L4 | The controller was reached; *its* upstream connection failed |
+| `404` from an Ingress | L7 | Reached the controller, no rule matched. Nothing below L7 is wrong. |
+| `200`, wrong content | app | Networking is fine. Stop looking at Kubernetes. |
+
+The row that costs people the most time is the last one they check: a `404` from an Ingress means
+every layer underneath it worked. The request resolved, connected, was proxied, and came back. There
+is nothing to debug below L7.
+
+## Silence is the L4 signature
+
+The stage-1 version of this lesson was cheaper and nastier. I broke a Service selector by one
+character — one letter in one label — and the result was `curl` exit 7 and **no error message
+anywhere, in any log, in any component**. Not in the app, not in kube-proxy, not in the events.
+
+That is correct behaviour, and it follows directly from the second rule above. At L4 there is nobody
+whose job it is to generate an error. An HTTP 503 requires something that speaks HTTP; a Service
+does not. When the Endpoints list is empty there is simply no DNAT rule to match, and packets go
+nowhere quietly. The EndpointSlice is where that failure is visible, and it is visible as an absence:
+
+```
+NAME            READY   ADDR
+control-8tts5   true    [10.244.0.5]
+```
+
+`READY=true` with a real address is the healthy line. A missing slice, or one with no addresses, is
+the whole diagnosis — and it sits downstream of the pod being Ready and upstream of any curl, which
+makes it the single most useful thing to look at when someone says "the service is down".
+
+## Two shell gotchas that nearly ruined the evidence
+
+Both of these cost me a rerun, and both are the kind of thing that quietly corrupts a result rather
+than failing loudly.
+
+**`$?` after a pipe is the wrong process.** `curl … | head -2; echo $?` reports *head's* exit status,
+which is 0 essentially always. The exit codes this entire note is built on would have all been 0.
+Capture `$?` before any pipe touches it.
+
+**`kubectl run -i` attaches after the container has started.** Anything printed in the first
+fraction of a second is gone. On the first attempt three of the four cases vanished and only case 4
+appeared — the slow one, the six-second timeout, because it was still running by the time the
+attach completed. For anything short: `kubectl run` with no `-i`, then `kubectl wait`, then
+`kubectl logs`. Losing fast output while keeping slow output is a particularly good way to draw the
+wrong conclusion, since the surviving evidence looks complete.
+
+## What I take forward
+
+Reading the layer off the failure shape costs nothing and narrows the search enormously. Refused
+versus timed out is the highest-value distinction in the set, and it is one experiment away from
+being permanent knowledge rather than something you looked up. The manifests and the raw session log
+are in the lab repo if you want to reproduce any of it.

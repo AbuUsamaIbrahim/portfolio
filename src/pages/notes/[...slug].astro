@@ -1,0 +1,119 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+
+export async function getStaticPaths() {
+  const notes = await getCollection('field-notes', ({ data }) => !data.draft);
+  // Newest first, so "next" walks backwards through the series the way a reader arriving
+  // at the latest note wants to travel.
+  const sorted = notes.sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+  return sorted.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: { entry, next: sorted[(i + 1) % sorted.length] },
+  }));
+}
+
+const { entry, next } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+
+const fmt = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+---
+
+<Layout
+  title={`${d.title} — Mahadi Hasan`}
+  description={d.summary}
+  ogImage={`note-${entry.id}`}
+>
+  <article class="mx-auto max-w-3xl px-5 pt-14 pb-10">
+    {/* ---- header ---- */}
+    <a
+      href="/notes/"
+      class="inline-flex items-center gap-2 font-mono text-[11px] text-[var(--color-ink-faint)] transition-colors hover:text-[var(--color-ink-dim)]"
+    >
+      ← All field notes
+    </a>
+
+    <p class="mt-8 font-mono text-[11px] tracking-[0.2em] uppercase" style={`color:${d.accent}`}>
+      {d.series}{d.stage && ` — ${d.stage}`}
+    </p>
+
+    <h1 class="mt-4 text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl">
+      {d.title}
+    </h1>
+    <p class="mt-4 text-lg text-[var(--color-ink-dim)]">{d.subtitle}</p>
+
+    <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-[11px] text-[var(--color-ink-faint)]">
+      <time datetime={d.date.toISOString()}>{fmt.format(d.date)}</time>
+      {
+        d.repo && (
+          <a
+            href={d.repo}
+            class="inline-flex items-center gap-1.5 rounded border px-2 py-1 transition-colors"
+            style={`border-color:${d.accent}55;color:${d.accent}`}
+          >
+            the lab repo ↗
+          </a>
+        )
+      }
+    </div>
+
+    {/* ---- the standing claim of the series ----
+         Stated on every note rather than once on the index, because most readers arrive on
+         a note from a shared link and never see the index. It is also the thing that makes
+         the series worth reading: the output below is real, or it is not published. */}
+    <p
+      class="mt-10 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]/40 p-5 text-[15px] leading-relaxed text-[var(--color-ink-dim)] sm:p-6"
+    >
+      A field note, not a tutorial. Everything below was reproduced on a local cluster, and the
+      terminal output is the output I actually got.
+    </p>
+
+    {/* ---- body ---- */}
+    <div class="prose-tech mt-12" style={`--prose-accent:${d.accent}`}>
+      <Content />
+    </div>
+
+    {/* ---- tags ---- */}
+    {
+      d.tags.length > 0 && (
+        <section class="mt-14">
+          <h2 class="font-mono text-[11px] tracking-[0.14em] text-[var(--color-ink-faint)] uppercase">
+            Tags
+          </h2>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            {d.tags.map((t) => (
+              <span class="rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--color-ink-dim)]">
+                {t}
+              </span>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    {/* ---- next ---- */}
+    {
+      next.id !== entry.id && (
+        <a
+          href={`/notes/${next.id}/`}
+          class="group mt-16 block rounded-xl border border-[var(--color-line)] p-6 transition-colors hover:border-[var(--color-line-bright)] hover:bg-[var(--color-surface)]/50"
+        >
+          <span class="font-mono text-[10px] tracking-[0.18em] text-[var(--color-ink-faint)] uppercase">
+            Next field note
+          </span>
+          <p class="mt-2 flex items-center justify-between gap-4 text-lg font-semibold text-[var(--color-ink)]">
+            {next.data.title}
+            <span class="transition-transform group-hover:translate-x-1">→</span>
+          </p>
+          <p class="mt-1 font-mono text-[11px] text-[var(--color-ink-faint)]">{next.data.subtitle}</p>
+        </a>
+      )
+    }
+  </article>
+</Layout>

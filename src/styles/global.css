@@ -122,7 +122,9 @@ body::before {
   font-size: 0.8125rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--color-flow);
+  /* Section rules pick up the page's own accent so a field note does not wear the case
+     studies' cyan. Falls back to cyan, which is what every case study wants. */
+  color: var(--prose-accent, var(--color-flow));
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -183,3 +185,34 @@ body::before {
   color: var(--color-ink);
   font-style: normal;
 }
+
+/* Tables inside long-form prose.
+   Field notes lean on them — a layer ladder or a table of failure signatures is genuinely
+   tabular and reads badly as a list. `display: block` is the responsive-table trick: it
+   lets a wide table scroll inside itself instead of forcing the page sideways. */
+.prose-tech table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.prose-tech th,
+.prose-tech td {
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.6rem 1.1rem 0.6rem 0;
+  text-align: left;
+  vertical-align: top;
+}
+.prose-tech th {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+  border-bottom-color: var(--color-line-bright);
+  white-space: nowrap;
+}
+.prose-tech tbody tr:last-child td { border-bottom: none; }
+.prose-tech td:first-child { color: var(--color-ink); }
